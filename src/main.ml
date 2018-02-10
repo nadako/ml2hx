@@ -105,8 +105,10 @@ let rec expression e =
 			) fields in
 			sprintf "{ var __obj = %s; { %s } }" (expression expr) (String.concat ", " fields)
 		)
-	| Texp_field _ -> "TODO: Texp_field"
-	| Texp_setfield _ -> "TODO: Texp_setfield"
+	| Texp_field (eobj,_,label) ->
+		sprintf "%s.%s" (expression eobj) label.lbl_name
+	| Texp_setfield (eobj,_,label,evalue) ->
+		sprintf "%s.%s = %s" (expression eobj) label.lbl_name (expression evalue)
 	| Texp_array _ -> "TODO: Texp_array"
 	| Texp_ifthenelse _ -> "TODO: Texp_ifthenelse"
 	| Texp_sequence _ -> "TODO: Texp_sequence"
@@ -119,7 +121,7 @@ let rec expression e =
 	| Texp_override _ -> "TODO: Texp_override"
 	| Texp_letmodule _ -> "TODO: Texp_letmodule"
 	| Texp_letexception _ -> "TODO: Texp_letexception"
-	| Texp_assert _ -> "TODO: Texp_assert"
+	| Texp_assert expr -> sprintf "assert(%s)" (expression expr)
 	| Texp_lazy _ -> "TODO: Texp_lazy"
 	| Texp_object _ -> "TODO: Texp_object"
 	| Texp_pack _ -> "TODO: Texp_pack"
