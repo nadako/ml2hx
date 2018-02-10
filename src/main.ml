@@ -69,8 +69,19 @@ let rec expression e =
 	| Texp_apply _ -> "TODO: Texp_apply"
 	| Texp_match _ -> "TODO: Texp_match"
 	| Texp_try _ -> "TODO: Texp_try"
-	| Texp_tuple _ -> "TODO: Texp_tuple"
-	| Texp_construct _ -> "TODO: Texp_construct"
+	| Texp_tuple exprs ->
+		let i = ref 0 in
+		let fields = List.map (fun e ->
+			let s = sprintf "_%d: %s" !i (expression e) in
+			incr i;
+			s
+		) exprs in
+		sprintf "{ %s }" (String.concat ", " fields)
+	| Texp_construct (_,ctor,args) ->
+		if args = [] then
+			ctor.cstr_name
+		else
+			sprintf "%s(%s)" ctor.cstr_name (String.concat ", " (List.map expression args))
 	| Texp_variant _ -> "TODO: Texp_variant"
 	| Texp_record { fields = fields; extended_expression = extends } ->
 		let fields = Array.to_list fields in
