@@ -1,12 +1,13 @@
 open Printf
 open Asttypes
+open Types
 open Typedtree
 
-let s_longident i =
-	match Longident.flatten i with
-	| ["int"] -> "Int"
-	| ["string"] -> "String"
-	| parts -> String.concat "." parts
+let s_typepath path =
+	match Path.name path with
+	| "int" -> "Int"
+	| "string" -> "String"
+	| other -> other
 
 let rec core_type t =
 	match t.ctyp_desc with
@@ -14,7 +15,7 @@ let rec core_type t =
 	| Ttyp_var _ -> assert false
 	| Ttyp_arrow _ -> assert false
 	| Ttyp_tuple _ -> assert false
-	| Ttyp_constr (_,i,pl) -> (s_longident i.txt) ^ (if pl = [] then "" else sprintf "<%s>" (String.concat ", " (List.map core_type pl)))
+	| Ttyp_constr (path,_,pl) -> (s_typepath path) ^ (if pl = [] then "" else sprintf "<%s>" (String.concat ", " (List.map core_type pl)))
 	| Ttyp_object _ -> assert false
 	| Ttyp_class _ -> assert false
 	| Ttyp_alias _ -> assert false
@@ -59,9 +60,9 @@ let constant = function
 	| Const_int64 v -> sprintf "%Ld /*TODO: int64*/" v
 	| Const_nativeint v -> sprintf "%nd /*TODO: nativeint*/" v
 
-let expression e =
+let rec expression e =
 	match e.exp_desc with
-	| Texp_ident _ -> "TODO: Texp_ident"
+	| Texp_ident (path, ident, desc) -> Path.name path
 	| Texp_constant c -> constant c
 	| Texp_let _ -> "TODO: Texp_let"
 	| Texp_function _ -> "TODO: Texp_function"
@@ -71,7 +72,28 @@ let expression e =
 	| Texp_tuple _ -> "TODO: Texp_tuple"
 	| Texp_construct _ -> "TODO: Texp_construct"
 	| Texp_variant _ -> "TODO: Texp_variant"
-	| Texp_record _ -> "TODO: Texp_record"
+	| Texp_record { fields = fields; extended_expression = extends } ->
+		let fields = Array.to_list fields in
+		(match extends with
+		| None ->
+			let fields = List.map (fun (d,r) ->
+				let v = match r with
+					| Kept _ -> assert false
+					| Overridden (_,e) -> expression e
+				in
+				sprintf "%s: %s" d.lbl_name v
+			) fields in
+			sprintf "{ %s }" (String.concat ", " fields)
+		| Some expr ->
+			let fields = List.map (fun (d,r) ->
+				let v = match r with
+					| Kept _ -> sprintf "__obj.%s" d.lbl_name
+					| Overridden (_,e) -> expression e
+				in
+				sprintf "%s: %s" d.lbl_name v
+			) fields in
+			sprintf "{ var __obj = %s; { %s } }" (expression expr) (String.concat ", " fields)
+		)
 	| Texp_field _ -> "TODO: Texp_field"
 	| Texp_setfield _ -> "TODO: Texp_setfield"
 	| Texp_array _ -> "TODO: Texp_array"
@@ -95,9 +117,8 @@ let expression e =
 
 let value_binding v =
 	match v.vb_pat.pat_desc, v.vb_expr.exp_desc with
-	| Tpat_var (_, name), Texp_function f ->
-		sprintf "function %s(%s) return switch %s {}" name.txt f.param.name f.param.name
-	| _ -> expression v.vb_expr
+ 	| Tpat_var (_, name), _ -> sprintf "var %s = %s;" name.txt (expression v.vb_expr)
+	| _ -> failwith "TODO"
 
 let structure_item item =
 	match item.str_desc with
