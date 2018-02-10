@@ -110,7 +110,10 @@ let rec expression e =
 	| Texp_setfield (eobj,_,label,evalue) ->
 		sprintf "%s.%s = %s" (expression eobj) label.lbl_name (expression evalue)
 	| Texp_array _ -> "TODO: Texp_array"
-	| Texp_ifthenelse _ -> "TODO: Texp_ifthenelse"
+	| Texp_ifthenelse (econd,ethen,None) ->
+		sprintf "if (%s) %s" (expression econd) (expression ethen)
+	| Texp_ifthenelse (econd,ethen,Some eelse) ->
+		sprintf "if (%s) %s else %s" (expression econd) (expression ethen) (expression eelse)
 	| Texp_sequence _ -> "TODO: Texp_sequence"
 	| Texp_while _ -> "TODO: Texp_while"
 	| Texp_for _ -> "TODO: Texp_for"
