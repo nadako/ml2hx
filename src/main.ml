@@ -1,4 +1,5 @@
 open Printf
+open Asttypes
 open Typedtree
 
 let s_longident i =
@@ -49,11 +50,54 @@ let type_declaration t =
 	| _ ->
 		"TODO: " ^ name
 
+let constant = function
+	| Const_int v -> sprintf "%d" v
+	| Const_char v -> sprintf "\"%c\".code" v
+	| Const_string (v,_) -> sprintf "%S" v
+	| Const_float v -> v
+	| Const_int32 v -> sprintf "%ld" v
+	| Const_int64 v -> sprintf "%Ld /*TODO: int64*/" v
+	| Const_nativeint v -> sprintf "%nd /*TODO: nativeint*/" v
+
+let expression e =
+	match e.exp_desc with
+	| Texp_ident _ -> "TODO: Texp_ident"
+	| Texp_constant c -> constant c
+	| Texp_let _ -> "TODO: Texp_let"
+	| Texp_function _ -> "TODO: Texp_function"
+	| Texp_apply _ -> "TODO: Texp_apply"
+	| Texp_match _ -> "TODO: Texp_match"
+	| Texp_try _ -> "TODO: Texp_try"
+	| Texp_tuple _ -> "TODO: Texp_tuple"
+	| Texp_construct _ -> "TODO: Texp_construct"
+	| Texp_variant _ -> "TODO: Texp_variant"
+	| Texp_record _ -> "TODO: Texp_record"
+	| Texp_field _ -> "TODO: Texp_field"
+	| Texp_setfield _ -> "TODO: Texp_setfield"
+	| Texp_array _ -> "TODO: Texp_array"
+	| Texp_ifthenelse _ -> "TODO: Texp_ifthenelse"
+	| Texp_sequence _ -> "TODO: Texp_sequence"
+	| Texp_while _ -> "TODO: Texp_while"
+	| Texp_for _ -> "TODO: Texp_for"
+	| Texp_send _ -> "TODO: Texp_send"
+	| Texp_new _ -> "TODO: Texp_new"
+	| Texp_instvar _ -> "TODO: Texp_instvar"
+	| Texp_setinstvar _ -> "TODO: Texp_setinstvar"
+	| Texp_override _ -> "TODO: Texp_override"
+	| Texp_letmodule _ -> "TODO: Texp_letmodule"
+	| Texp_letexception _ -> "TODO: Texp_letexception"
+	| Texp_assert _ -> "TODO: Texp_assert"
+	| Texp_lazy _ -> "TODO: Texp_lazy"
+	| Texp_object _ -> "TODO: Texp_object"
+	| Texp_pack _ -> "TODO: Texp_pack"
+	| Texp_unreachable -> "TODO: Texp_unreachable"
+	| Texp_extension_constructor _ -> "TODO: Texp_extension_constructor"
+
 let value_binding v =
 	match v.vb_pat.pat_desc, v.vb_expr.exp_desc with
 	| Tpat_var (_, name), Texp_function f ->
 		sprintf "function %s(%s) return switch %s {}" name.txt f.param.name f.param.name
-	| _ -> "TODO"
+	| _ -> expression v.vb_expr
 
 let structure_item item =
 	match item.str_desc with
@@ -61,7 +105,19 @@ let structure_item item =
 		String.concat "\n\n" (List.map type_declaration dl)
 	| Tstr_value (_, vl) ->
 		String.concat "\n\n" (List.map value_binding vl)
-	| _ -> "TODO"
+	| Tstr_eval _ -> "TODO: Tstr_eval"
+	| Tstr_primitive _ -> "TODO: Tstr_primitive"
+	| Tstr_typext _ -> "TODO: Tstr_typext"
+	| Tstr_exception _ -> "TODO: Tstr_exception"
+	| Tstr_module _ -> "TODO: Tstr_module"
+	| Tstr_recmodule _ -> "TODO: Tstr_recmodule"
+	| Tstr_modtype _ -> "TODO: Tstr_modtype"
+	| Tstr_open _ -> "TODO: Tstr_open"
+	| Tstr_class _ -> "TODO: Tstr_class"
+	| Tstr_class_type _ -> "TODO: Tstr_class_type"
+	| Tstr_include _ -> "TODO: Tstr_include"
+	| Tstr_attribute _ -> "TODO: Tstr_attribute"
+
 
 let implementation imp =
 	String.concat "\n\n" (List.map structure_item imp.str_items)
