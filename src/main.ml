@@ -48,7 +48,7 @@ let rec type_expr t =
 	| Tvar _ -> sprintf "TODO<\"Tvar\">"
 	| Tarrow (Nolabel,a,b,_) -> sprintf "%s -> %s" (type_expr a) (type_expr b)
 	| Tarrow _ -> sprintf "TODO<\"Tarrow\">"
-	| Ttuple _ -> sprintf "TODO<\"Ttuple\">"
+	| Ttuple tl -> sprintf "Tuple%d<%s>" (List.length tl) (String.concat ", " (List.map type_expr tl))
 	| Tconstr (path,pl,_) -> (s_typepath path) ^ (if pl = [] then "" else sprintf "<%s>" (String.concat ", " (List.map type_expr pl)))
 	| Tobject _ -> sprintf "TODO<\"Tobject\">"
 	| Tfield _ -> sprintf "TODO<\"Tfield\">"
