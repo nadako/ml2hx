@@ -27,6 +27,7 @@ let rec core_type t =
 let rec type_expr t =
 	match t.desc with
 	| Tvar _ -> sprintf "TODO<\"Tvar\">"
+	| Tarrow (Nolabel,a,b,_) -> sprintf "%s -> %s" (type_expr a) (type_expr b)
 	| Tarrow _ -> sprintf "TODO<\"Tarrow\">"
 	| Ttuple _ -> sprintf "TODO<\"Ttuple\">"
 	| Tconstr (path,pl,_) -> (s_typepath path) ^ (if pl = [] then "" else sprintf "<%s>" (String.concat ", " (List.map type_expr pl)))
