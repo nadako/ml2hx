@@ -60,6 +60,33 @@ let constant = function
 	| Const_int64 v -> sprintf "%Ld /*TODO: int64*/" v
 	| Const_nativeint v -> sprintf "%nd /*TODO: nativeint*/" v
 
+let rec pattern p =
+	match p.pat_desc with
+	| Tpat_any -> "_"
+	| Tpat_var (_, n) -> n.txt
+	| Tpat_alias (pat,_,n) -> sprintf "%s = (%s)" n.txt (pattern pat)
+	| Tpat_constant c -> constant c
+	| Tpat_tuple pl ->
+		let i = ref 0 in
+		let fields = List.map (fun p ->
+			let s = sprintf "_%d: %s" !i (pattern p) in
+			incr i;
+			s
+		) pl in
+		sprintf "{ %s }" (String.concat ", " fields)
+	| Tpat_construct (_,ctor,pl) ->
+		if pl = [] then
+			ctor.cstr_name
+		else
+			sprintf "%s(%s)" ctor.cstr_name (String.concat ", " (List.map pattern pl))
+	| Tpat_variant _ -> failwith "polymorphic variants are unsupported"
+	| Tpat_record (fields,_) ->
+		let fields = List.map (fun (_,l,p) -> sprintf "%s: %s" (l.lbl_name) (pattern p)) fields in
+		sprintf "{ %s }" (String.concat ", " fields)
+	| Tpat_array pl -> sprintf "[ %s ]" (String.concat ", " (List.map pattern pl))
+	| Tpat_or (a,b,_) -> sprintf "%s | %s" (pattern a) (pattern b)
+	| Tpat_lazy _ -> failwith "lazy patterns are unsupported"
+
 let rec expression e =
 	match e.exp_desc with
 	| Texp_ident (path, ident, desc) -> Path.name path
@@ -67,7 +94,14 @@ let rec expression e =
 	| Texp_let _ -> "TODO: Texp_let"
 	| Texp_function _ -> "TODO: Texp_function"
 	| Texp_apply _ -> "TODO: Texp_apply"
-	| Texp_match _ -> "TODO: Texp_match"
+	| Texp_match (expr,cases,exccases,partial) ->
+		if exccases <> [] then failwith "exception match is not supported";
+		let cases = List.map (fun c ->
+			let pattern = pattern c.c_lhs in
+			let guard = match c.c_guard with None -> "" | Some e -> sprintf " if (%s)" (expression e) in
+			sprintf "\tcase %s%s: %s" pattern guard (expression c.c_rhs)
+		) cases in
+		sprintf "switch %s {\n%s\n}" (expression expr) (String.concat "\n" cases)
 	| Texp_try _ -> "TODO: Texp_try"
 	| Texp_tuple exprs ->
 		let i = ref 0 in
