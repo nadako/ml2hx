@@ -112,9 +112,10 @@ let rec expression e =
 		) exprs in
 		sprintf "{ %s }" (String.concat ", " fields)
 	| Texp_construct (_,ctor,args) ->
-		if args = [] then
-			ctor.cstr_name
-		else
+		if args = [] then (
+			if ctor.cstr_name = "()" then "null /* TODO: unit? */"
+			else ctor.cstr_name
+		) else
 			sprintf "%s(%s)" ctor.cstr_name (String.concat ", " (List.map expression args))
 	| Texp_variant _ -> "TODO: Texp_variant"
 	| Texp_record { fields = fields; extended_expression = extends } ->
@@ -148,8 +149,8 @@ let rec expression e =
 		sprintf "if (%s) %s" (expression econd) (expression ethen)
 	| Texp_ifthenelse (econd,ethen,Some eelse) ->
 		sprintf "if (%s) %s else %s" (expression econd) (expression ethen) (expression eelse)
-	| Texp_sequence _ -> "TODO: Texp_sequence"
-	| Texp_while _ -> "TODO: Texp_while"
+	| Texp_sequence (a,b) -> sprintf "%s; %s" (expression a) (expression b)
+	| Texp_while (econd,ebody) -> sprintf "while (%s) %s" (expression econd) (expression ebody)
 	| Texp_for _ -> "TODO: Texp_for"
 	| Texp_send _ -> "TODO: Texp_send"
 	| Texp_new _ -> "TODO: Texp_new"
