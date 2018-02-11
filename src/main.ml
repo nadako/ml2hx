@@ -268,6 +268,12 @@ let ppf = Format.err_formatter
 
 let main () =
 	let filename = "test.ml" in
+(* 	Clflags.include_dirs := [
+		"../haxe/_build/src/core";
+		"../haxe/libs/extlib-leftovers";
+		"E:/Cygwin/home/nadako/.opam/4.06.0+mingw64c/lib/ptmap";
+		"E:/Cygwin/home/nadako/.opam/4.06.0+mingw64c/lib/extlib";
+	]; *)
 	let outputprefix = Compenv.output_prefix filename in
 	let modulename = Compenv.module_of_filename ppf filename outputprefix in
 	Compmisc.init_path true;
@@ -283,7 +289,7 @@ let main () =
 			Location.report_exception ppf x;
 			exit 2
 	in
-	Printtyped.implementation ppf typedtree;
+	(* Printtyped.implementation ppf typedtree; *)
 	let out = implementation typedtree in
 	let f = open_out (modulename ^ ".hx") in
 	output_string f out;
