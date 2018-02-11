@@ -272,13 +272,25 @@ let tool_name = "ml2hx"
 let ppf = Format.err_formatter
 
 let main () =
-	let filename = "test.ml" in
-(* 	Clflags.include_dirs := [
-		"../haxe/_build/src/core";
-		"../haxe/libs/extlib-leftovers";
-		"E:/Cygwin/home/nadako/.opam/4.06.0+mingw64c/lib/ptmap";
-		"E:/Cygwin/home/nadako/.opam/4.06.0+mingw64c/lib/extlib";
-	]; *)
+	(* sorry, i have no idea how to properly use Arg module *)
+	let file = ref None in
+	let anon s =
+		if !file <> None then raise (Arg.Bad "file already specified");
+		file := Some s;
+	in
+	let incl s = Clflags.include_dirs := s :: !Clflags.include_dirs in
+	let filename =
+		try
+			Arg.parse [
+				("-I", Arg.String incl, "Include directory")
+			] anon "Usage: main.exe <file.ml>";
+			match !file with Some f -> f | None -> raise (Arg.Bad "<file.ml> is required")
+		with Arg.Bad msg -> begin
+			prerr_endline msg;
+			exit 2
+		end
+	in
+
 	let outputprefix = Compenv.output_prefix filename in
 	let modulename = Compenv.module_of_filename ppf filename outputprefix in
 	Compmisc.init_path true;

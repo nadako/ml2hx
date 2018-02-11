@@ -5,6 +5,6 @@ LIBS = ocamlcommon ocamloptcomp
 OCAMLFLAGS = -color never
 
 all: byte-code
-	./main.exe
+	./main.exe test.ml
 
 -include OCamlMakefile
