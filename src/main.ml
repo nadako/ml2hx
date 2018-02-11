@@ -16,23 +16,26 @@ let s_typepath path =
 	| "unit" -> "Void"
 	| other -> other
 
-let rewrite_func (arg_label, param, cases, partial) env loc =
-	let c = List.hd cases in
+let mk_param_ident env param t loc =
 	let param_name = Ident.name param in
 	let param_longident = { txt = Longident.Lident param_name; loc = loc} in
-	let param_ident = {
+	{
 			exp_desc = Texp_ident (Pident param, param_longident, {
-				val_type = c.c_lhs.pat_type;
+				val_type = t;
 				val_kind = Val_reg;
 				val_loc = loc;
 				val_attributes = [];
 			});
 			exp_loc = loc;
 			exp_extra = [];
-			exp_type = c.c_lhs.pat_type;
+			exp_type = t;
 			exp_env = env;
 			exp_attributes = [];
-	} in
+	}
+
+let rewrite_func (arg_label, param, cases, partial) env loc =
+	let c = List.hd cases in
+	let param_ident = mk_param_ident env param c.c_lhs.pat_type loc in
 	let expr = {
 		exp_desc = Texp_match (param_ident, cases, [], partial);
 		exp_loc = loc;
