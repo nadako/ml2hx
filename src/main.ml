@@ -15,6 +15,33 @@ let s_typepath path =
 	| "string" -> "String"
 	| other -> other
 
+let rewrite_func (arg_label, param, cases, partial) env loc =
+	let c = List.hd cases in
+	let param_name = Ident.name param in
+	let param_longident = { txt = Longident.Lident param_name; loc = loc} in
+	let param_ident = {
+			exp_desc = Texp_ident (Pident param, param_longident, {
+				val_type = c.c_lhs.pat_type;
+				val_kind = Val_reg;
+				val_loc = loc;
+				val_attributes = [];
+			});
+			exp_loc = loc;
+			exp_extra = [];
+			exp_type = c.c_lhs.pat_type;
+			exp_env = env;
+			exp_attributes = [];
+	} in
+	let expr = {
+		exp_desc = Texp_match (param_ident, cases, [], partial);
+		exp_loc = loc;
+		exp_extra = [];
+		exp_type = c.c_rhs.exp_type;
+		exp_env = env;
+		exp_attributes = [];
+	} in
+	arg_label, param, c.c_lhs.pat_type, c.c_rhs.exp_type, expr
+
 let rec core_type t =
 	match t.ctyp_desc with
 	| Ttyp_any -> assert false
@@ -119,7 +146,7 @@ let rec expression e =
 	| Texp_ident (path, ident, desc) -> Path.name path
 	| Texp_constant c -> constant c
 	| Texp_let _ -> "TODO: Texp_let"
-	| Texp_function f -> texp_function f.arg_label f.param f.cases f.partial
+	| Texp_function f -> texp_function (f.arg_label, f.param, f.cases, f.partial) e.exp_env e.exp_loc
 	| Texp_apply (e, args) ->
 		(* TODO: handle partial application using .bind *)
 		let args = List.map (fun (l, e) ->
@@ -209,13 +236,13 @@ and switch sexpr cases partial =
 	let cases = if partial = Partial then cases @ ["case _: throw \"match failure\";"] else cases in
 	sprintf "switch %s {\n%s%s\n%s}" sexpr ind (String.concat ("\n" ^ ind) cases) !istr
 
-and texp_function arg_label param cases partial =
+and texp_function f env loc =
+	let arg_label, param, arg_type, ret_type, expr = rewrite_func f env loc in
 	assert (arg_label = Nolabel);
 	let arg_name = Ident.name param in
-	let first_case = List.hd cases in
-	let arg_type = type_expr first_case.c_lhs.pat_type in
-	let ret_type = type_expr first_case.c_rhs.exp_type in
-	sprintf "function(%s:%s):%s return %s" arg_name arg_type ret_type (switch arg_name cases partial)
+	let arg_type = type_expr arg_type in
+	let ret_type = type_expr ret_type in
+	sprintf "function(%s:%s):%s return %s" arg_name arg_type ret_type (expression expr)
 
 let value_binding v =
 	match v.vb_pat.pat_desc, v.vb_expr.exp_desc with
