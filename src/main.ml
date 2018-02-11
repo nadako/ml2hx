@@ -24,6 +24,22 @@ let rec core_type t =
 	| Ttyp_poly (pl,t) -> (core_type t) ^ (if pl = [] then "" else sprintf "<%s>" (String.concat ", " pl))
 	| Ttyp_package _ -> assert false
 
+let rec type_expr t =
+	match t.desc with
+	| Tvar _ -> sprintf "TODO<\"Tvar\">"
+	| Tarrow _ -> sprintf "TODO<\"Tarrow\">"
+	| Ttuple _ -> sprintf "TODO<\"Ttuple\">"
+	| Tconstr (path,pl,_) -> (s_typepath path) ^ (if pl = [] then "" else sprintf "<%s>" (String.concat ", " (List.map type_expr pl)))
+	| Tobject _ -> sprintf "TODO<\"Tobject\">"
+	| Tfield _ -> sprintf "TODO<\"Tfield\">"
+	| Tnil -> sprintf "TODO<\"Tnil\">"
+	| Tlink t -> type_expr t
+	| Tsubst _ -> sprintf "TODO<\"Tsubst\">"
+	| Tvariant _ -> sprintf "TODO<\"Tvariant\">"
+	| Tunivar _ -> sprintf "TODO<\"Tunivar\">"
+	| Tpoly _ -> sprintf "TODO<\"Tpoly\">"
+	| Tpackage _ -> sprintf "TODO<\"Tpackage\">"
+
 let label_declaration l =
 	let kw = if l.ld_mutable = Immutable then "final" else "var" in
 	let t = core_type l.ld_type in
@@ -186,7 +202,10 @@ and switch sexpr cases partial =
 and texp_function arg_label param cases partial =
 	assert (arg_label = Nolabel);
 	let arg_name = Ident.name param in
-	sprintf "function(%s) return %s" arg_name (switch arg_name cases partial)
+	let first_case = List.hd cases in
+	let arg_type = type_expr first_case.c_lhs.pat_type in
+	let ret_type = type_expr first_case.c_rhs.exp_type in
+	sprintf "function(%s:%s):%s return %s" arg_name arg_type ret_type (switch arg_name cases partial)
 
 let value_binding v =
 	match v.vb_pat.pat_desc, v.vb_expr.exp_desc with
