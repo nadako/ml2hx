@@ -9,6 +9,13 @@ let indent () =
 	istr := old ^ "\t";
 	fun () -> istr := old
 
+let with_ident f v =
+	let unindent = indent () in
+	let istr = !istr in
+	let r = f v in
+	unindent ();
+	r, istr
+
 let s_typepath path =
 	match Path.name path with
 	| "int" -> "Int"
@@ -154,7 +161,13 @@ let rec expression e =
 	| Texp_match (expr,cases,exccases,partial) ->
 		if exccases <> [] then failwith "exception match is not supported";
 		switch (expression expr) cases partial
-	| Texp_try _ -> "TODO: Texp_try"
+	| Texp_try (e,cases) ->
+		let e,i = with_ident expression e in
+		let catches = List.map (fun c ->
+			let body,i = with_ident expression c.c_rhs in
+			sprintf "%scatch (TODO)\n%s%s" !istr i body
+		) cases in
+		sprintf "try\n%s%s\n%s" i e (String.concat "\n" catches)
 	| Texp_tuple exprs ->
 		let i = ref 0 in
 		let fields = List.map (fun e ->
