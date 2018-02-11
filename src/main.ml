@@ -96,7 +96,7 @@ let rec expression e =
 	| Texp_ident (path, ident, desc) -> Path.name path
 	| Texp_constant c -> constant c
 	| Texp_let _ -> "TODO: Texp_let"
-	| Texp_function _ -> "TODO: Texp_function"
+	| Texp_function f -> texp_function f.arg_label f.param f.cases f.partial
 	| Texp_apply (e, args) ->
 		(* TODO: handle partial application using .bind *)
 		let args = List.map (fun (l, e) ->
@@ -108,12 +108,7 @@ let rec expression e =
 		sprintf "%s(%s)" (expression e) (String.concat ", " args)
 	| Texp_match (expr,cases,exccases,partial) ->
 		if exccases <> [] then failwith "exception match is not supported";
-		let cases = List.map (fun c ->
-			let pattern = pattern c.c_lhs in
-			let guard = match c.c_guard with None -> "" | Some e -> sprintf " if (%s)" (expression e) in
-			sprintf "\tcase %s%s: %s" pattern guard (expression c.c_rhs)
-		) cases in
-		sprintf "switch %s {\n%s\n}" (expression expr) (String.concat "\n" cases)
+		switch (expression expr) cases partial
 	| Texp_try _ -> "TODO: Texp_try"
 	| Texp_tuple exprs ->
 		let i = ref 0 in
@@ -177,6 +172,21 @@ let rec expression e =
 	| Texp_pack _ -> "TODO: Texp_pack"
 	| Texp_unreachable -> "TODO: Texp_unreachable"
 	| Texp_extension_constructor _ -> "TODO: Texp_extension_constructor"
+
+and switch sexpr cases partial =
+	let case c =
+		let pattern = pattern c.c_lhs in
+		let guard = match c.c_guard with None -> "" | Some e -> sprintf " if (%s)" (expression e) in
+		sprintf "case %s%s: %s;" pattern guard (expression c.c_rhs)
+	in
+	let cases = List.map case cases in
+	let cases = if partial = Partial then cases @ ["case _: throw \"match failure\";"] else cases in
+	sprintf "switch %s {\n\t%s\n}" sexpr (String.concat "\n\t" cases)
+
+and texp_function arg_label param cases partial =
+	assert (arg_label = Nolabel);
+	let arg_name = Ident.name param in
+	sprintf "function(%s) return %s" arg_name (switch arg_name cases partial)
 
 let value_binding v =
 	match v.vb_pat.pat_desc, v.vb_expr.exp_desc with
