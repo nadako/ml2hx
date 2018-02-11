@@ -121,7 +121,8 @@ let rec pattern p =
 		sprintf "{ %s }" (String.concat ", " fields)
 	| Tpat_construct (_,ctor,pl) ->
 		if pl = [] then
-			ctor.cstr_name
+			if ctor.cstr_name = "()" then "null /* TODO: unit? */"
+			else ctor.cstr_name
 		else
 			sprintf "%s(%s)" ctor.cstr_name (String.concat ", " (List.map pattern pl))
 	| Tpat_variant _ -> failwith "polymorphic variants are unsupported"
