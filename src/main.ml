@@ -93,7 +93,15 @@ let rec expression e =
 	| Texp_constant c -> constant c
 	| Texp_let _ -> "TODO: Texp_let"
 	| Texp_function _ -> "TODO: Texp_function"
-	| Texp_apply _ -> "TODO: Texp_apply"
+	| Texp_apply (e, args) ->
+		(* TODO: handle partial application using .bind *)
+		let args = List.map (fun (l, e) ->
+			if l <> Nolabel then failwith "Labeled arguments are not yet supported";
+			match e with
+			| None -> failwith "Arguments without expression are not yet supported";
+			| Some e -> expression e
+		) args in
+		sprintf "%s(%s)" (expression e) (String.concat ", " args)
 	| Texp_match (expr,cases,exccases,partial) ->
 		if exccases <> [] then failwith "exception match is not supported";
 		let cases = List.map (fun c ->
