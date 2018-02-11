@@ -13,6 +13,7 @@ let rec core_type t =
 	match t.ctyp_desc with
 	| Ttyp_any -> assert false
 	| Ttyp_var _ -> assert false
+	| Ttyp_arrow (Nolabel,a,b) -> sprintf "%s -> %s" (core_type a) (core_type b)
 	| Ttyp_arrow _ -> assert false
 	| Ttyp_tuple _ -> assert false
 	| Ttyp_constr (path,_,pl) -> (s_typepath path) ^ (if pl = [] then "" else sprintf "<%s>" (String.concat ", " (List.map core_type pl)))
