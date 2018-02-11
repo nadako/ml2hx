@@ -3,6 +3,12 @@ open Asttypes
 open Types
 open Typedtree
 
+let istr = ref ""
+let indent () =
+	let old = !istr in
+	istr := old ^ "\t";
+	fun () -> istr := old
+
 let s_typepath path =
 	match Path.name path with
 	| "int" -> "Int"
@@ -196,9 +202,12 @@ and switch sexpr cases partial =
 		let guard = match c.c_guard with None -> "" | Some e -> sprintf " if (%s)" (expression e) in
 		sprintf "case %s%s: %s;" pattern guard (expression c.c_rhs)
 	in
+	let unindent = indent () in
+	let ind = !istr in
 	let cases = List.map case cases in
+	unindent ();
 	let cases = if partial = Partial then cases @ ["case _: throw \"match failure\";"] else cases in
-	sprintf "switch %s {\n\t%s\n}" sexpr (String.concat "\n\t" cases)
+	sprintf "switch %s {\n%s%s\n%s}" sexpr ind (String.concat ("\n" ^ ind) cases) !istr
 
 and texp_function arg_label param cases partial =
 	assert (arg_label = Nolabel);
