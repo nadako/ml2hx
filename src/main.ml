@@ -48,8 +48,8 @@ let type_declaration t =
 	| Ttype_record ll ->
 		let fields = List.map label_declaration ll in
 		sprintf "typedef %s = {\n\t%s\n}" name (String.concat "\n\t" fields)
-	| _ ->
-		"TODO: " ^ name
+	| Ttype_abstract -> failwith "TODO: Ttype_abstract"
+	| Ttype_open -> failwith "TODO: Ttype_open"
 
 let constant = function
 	| Const_int v -> sprintf "%d" v
@@ -226,6 +226,7 @@ let main () =
 			Location.report_exception ppf x;
 			exit 2
 	in
+	Printtyped.implementation ppf typedtree;
 	let out = implementation typedtree in
 	let f = open_out (modulename ^ ".hx") in
 	output_string f out;
