@@ -170,6 +170,9 @@ let value_binding v =
  	| Tpat_var (_, name), _ -> sprintf "var %s = %s;" name.txt (expression v.vb_expr)
 	| _ -> failwith "TODO"
 
+let class_declaration (c,pub_methods) =
+	"TODO: class_declaration"
+
 let structure_item item =
 	match item.str_desc with
 	| Tstr_type (_, dl) ->
@@ -184,7 +187,8 @@ let structure_item item =
 	| Tstr_recmodule _ -> "TODO: Tstr_recmodule"
 	| Tstr_modtype _ -> "TODO: Tstr_modtype"
 	| Tstr_open _ -> "TODO: Tstr_open"
-	| Tstr_class _ -> "TODO: Tstr_class"
+	| Tstr_class (cl) ->
+		String.concat "\n\n" (List.map class_declaration cl)
 	| Tstr_class_type _ -> "TODO: Tstr_class_type"
 	| Tstr_include _ -> "TODO: Tstr_include"
 	| Tstr_attribute _ -> "TODO: Tstr_attribute"
