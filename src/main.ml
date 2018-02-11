@@ -42,21 +42,6 @@ let rewrite_func (arg_label, param, cases, partial) env loc =
 	} in
 	arg_label, param, c.c_lhs.pat_type, c.c_rhs.exp_type, expr
 
-let rec core_type t =
-	match t.ctyp_desc with
-	| Ttyp_any -> assert false
-	| Ttyp_var _ -> assert false
-	| Ttyp_arrow (Nolabel,a,b) -> sprintf "%s -> %s" (core_type a) (core_type b)
-	| Ttyp_arrow _ -> assert false
-	| Ttyp_tuple _ -> assert false
-	| Ttyp_constr (path,_,pl) -> (s_typepath path) ^ (if pl = [] then "" else sprintf "<%s>" (String.concat ", " (List.map core_type pl)))
-	| Ttyp_object _ -> assert false
-	| Ttyp_class _ -> assert false
-	| Ttyp_alias _ -> assert false
-	| Ttyp_variant _ -> assert false
-	| Ttyp_poly (pl,t) -> (core_type t) ^ (if pl = [] then "" else sprintf "<%s>" (String.concat ", " pl))
-	| Ttyp_package _ -> assert false
-
 let rec type_expr t =
 	match t.desc with
 	| Tvar _ -> sprintf "TODO<\"Tvar\">"
@@ -71,8 +56,10 @@ let rec type_expr t =
 	| Tsubst _ -> sprintf "TODO<\"Tsubst\">"
 	| Tvariant _ -> sprintf "TODO<\"Tvariant\">"
 	| Tunivar _ -> sprintf "TODO<\"Tunivar\">"
-	| Tpoly _ -> sprintf "TODO<\"Tpoly\">"
+	| Tpoly (t,pl) -> (type_expr t) ^ (if pl = [] then "" else sprintf "<%s>" (String.concat ", " (List.map type_expr pl)))
 	| Tpackage _ -> sprintf "TODO<\"Tpackage\">"
+
+let core_type t = type_expr t.ctyp_type
 
 let label_declaration l =
 	let kw = if l.ld_mutable = Immutable then "final" else "var" in
