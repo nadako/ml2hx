@@ -41,7 +41,7 @@ let rewrite_func (arg_label, param, cases, partial) env loc =
 		exp_env = env;
 		exp_attributes = [];
 	} in
-	arg_label, param, c.c_lhs.pat_type, c.c_rhs.exp_type, expr
+	[(arg_label, param, c.c_lhs.pat_type)], c.c_rhs.exp_type, expr
 
 let rec type_expr t =
 	match t.desc with
@@ -225,12 +225,13 @@ and switch sexpr cases partial =
 	sprintf "switch %s {\n%s%s\n%s}" sexpr ind (String.concat ("\n" ^ ind) cases) !istr
 
 and texp_function f env loc =
-	let arg_label, param, arg_type, ret_type, expr = rewrite_func f env loc in
-	assert (arg_label = Nolabel);
-	let arg_name = Ident.name param in
-	let arg_type = type_expr arg_type in
+	let args, ret_type, expr = rewrite_func f env loc in
+	let args = List.map (fun (label, param, t) ->
+		assert (label = Nolabel);
+		sprintf "%s:%s" (Ident.name param) (type_expr t)
+	) args in
 	let ret_type = type_expr ret_type in
-	sprintf "function(%s:%s):%s return %s" arg_name arg_type ret_type (expression expr)
+	sprintf "function(%s):%s return %s" (String.concat ", " args) ret_type (expression expr)
 
 let value_binding v =
 	match v.vb_pat.pat_desc, v.vb_expr.exp_desc with
