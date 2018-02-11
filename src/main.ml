@@ -136,7 +136,10 @@ let rec expression e =
 	match e.exp_desc with
 	| Texp_ident (path, ident, desc) -> Path.name path
 	| Texp_constant c -> constant c
-	| Texp_let _ -> "TODO: Texp_let"
+	| Texp_let (_,bindings,expr) ->
+		let parts = List.map value_binding bindings in
+		let parts = parts @ [expression expr] in
+		String.concat ("\n" ^ !istr) parts
 	| Texp_function f -> texp_function (f.arg_label, f.param, f.cases, f.partial) e.exp_env e.exp_loc
 	| Texp_apply (e, args) ->
 		(* TODO: handle partial application using .bind *)
@@ -218,7 +221,11 @@ and switch sexpr cases partial =
 	let case c =
 		let pattern = pattern c.c_lhs in
 		let guard = match c.c_guard with None -> "" | Some e -> sprintf " if (%s)" (expression e) in
-		sprintf "case %s%s: %s;" pattern guard (expression c.c_rhs)
+		let unindent = indent () in
+		let e = expression c.c_rhs in
+		let r = sprintf "case %s%s:\n%s%s;" pattern guard !istr e in
+		unindent ();
+		r
 	in
 	let unindent = indent () in
 	let ind = !istr in
@@ -236,7 +243,7 @@ and texp_function f env loc =
 	let ret_type = type_expr ret_type in
 	sprintf "function(%s):%s return %s" (String.concat ", " args) ret_type (expression expr)
 
-let value_binding v =
+and value_binding v =
 	match v.vb_pat.pat_desc, v.vb_expr.exp_desc with
  	| Tpat_var (_, name), _ -> sprintf "var %s = %s;" name.txt (expression v.vb_expr)
 	| _ -> failwith "TODO"
