@@ -13,6 +13,7 @@ let s_typepath path =
 	match Path.name path with
 	| "int" -> "Int"
 	| "string" -> "String"
+	| "unit" -> "Void"
 	| other -> other
 
 let rewrite_func (arg_label, param, cases, partial) env loc =
