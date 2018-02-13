@@ -3,6 +3,10 @@ open Asttypes
 open Types
 open Typedtree
 
+exception Error of Location.t * string
+
+let error loc msg = raise (Error (loc, msg))
+
 let istr = ref ""
 let indent () =
 	let old = !istr in
@@ -175,9 +179,9 @@ let rec expression e =
 	| Texp_function f -> texp_function (f.arg_label, f.param, f.cases, f.partial) e.exp_env e.exp_loc
 	| Texp_apply (e, args) ->
 		(* TODO: handle partial application using .bind *)
-		let args = List.map (fun (l, e) ->
-			if l <> Nolabel then failwith "Labeled arguments are not yet supported";
-			match e with
+		let args = List.map (fun (l, e2) ->
+			if l <> Nolabel then error e.exp_loc "Labeled arguments are not yet supported";
+			match e2 with
 			| None -> failwith "Arguments without expression are not yet supported";
 			| Some e -> expression e
 		) args in
@@ -317,6 +321,11 @@ let tool_name = "ml2hx"
 let ppf = Format.err_formatter
 
 let main () =
+	Clflags.color := Some Never;
+	Location.register_error_of_exn (function
+		| Error (loc,  err) -> Some (Location.error ~loc err)
+		| _ -> None);
+
 	(* sorry, i have no idea how to properly use Arg module *)
 	let file = ref None in
 	let anon s =
@@ -342,17 +351,16 @@ let main () =
 	Env.set_unit_name modulename;
 	let env = Compmisc.initial_env() in
 	Compilenv.reset modulename;
-	let typedtree =
+	let out =
 		try
 			let ast = Pparse.parse_implementation ppf ~tool_name filename in
 			let typedtree, _ = Typemod.type_implementation filename outputprefix modulename env ast in
-			typedtree
+			(* Printtyped.implementation ppf typedtree; *)
+			implementation typedtree
 		with x ->
 			Location.report_exception ppf x;
 			exit 2
 	in
-	(* Printtyped.implementation ppf typedtree; *)
-	let out = implementation typedtree in
 	let f = open_out (modulename ^ ".hx") in
 	output_string f out;
 	close_out f
