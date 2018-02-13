@@ -40,18 +40,42 @@ let mk_param_ident env param t loc =
 			exp_attributes = [];
 	}
 
-let rewrite_func (arg_label, param, cases, partial) env loc =
-	let c = List.hd cases in
-	let param_ident = mk_param_ident env param c.c_lhs.pat_type loc in
-	let expr = {
-		exp_desc = Texp_match (param_ident, cases, [], partial);
-		exp_loc = loc;
+let mk_lets bindings expr =
+	{
+		exp_desc = Texp_let (Nonrecursive,bindings,expr);
+		exp_loc = expr.exp_loc;
 		exp_extra = [];
-		exp_type = c.c_rhs.exp_type;
-		exp_env = env;
+		exp_type = expr.exp_type;
+		exp_env = expr.exp_env;
 		exp_attributes = [];
-	} in
-	[(arg_label, param, c.c_lhs.pat_type)], c.c_rhs.exp_type, expr
+	}
+
+let rewrite_func f env loc =
+	let rec loop args_acc let_acc (arg_label, param, cases, partial) =
+		match cases with
+		| [{ c_rhs = { exp_desc = Texp_function f} } as c] ->
+			let args_acc = (arg_label, param, c.c_lhs.pat_type) :: args_acc in
+			let let_acc = {
+				vb_pat = c.c_lhs;
+				vb_expr = mk_param_ident env param c.c_lhs.pat_type loc;
+				vb_attributes = [];
+				vb_loc = loc;
+			} :: let_acc in
+			loop args_acc let_acc (f.arg_label, f.param, f.cases, f.partial)
+		| _ ->
+			let c = List.hd cases in
+			let param_ident = mk_param_ident env param c.c_lhs.pat_type loc in
+			let expr = {
+				exp_desc = Texp_match (param_ident, cases, [], partial);
+				exp_loc = loc;
+				exp_extra = [];
+				exp_type = c.c_rhs.exp_type;
+				exp_env = env;
+				exp_attributes = [];
+			} in
+			List.rev ((arg_label, param, c.c_lhs.pat_type) :: args_acc), c.c_rhs.exp_type, mk_lets (List.rev let_acc) expr
+	in
+	loop [] [] f
 
 let rec type_expr t =
 	match t.desc with
