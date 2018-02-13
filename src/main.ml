@@ -178,14 +178,16 @@ let rec expression e =
 		String.concat ("\n" ^ !istr) parts
 	| Texp_function f -> texp_function (f.arg_label, f.param, f.cases, f.partial) e.exp_env e.exp_loc
 	| Texp_apply (e, args) ->
-		(* TODO: handle partial application using .bind *)
+		let i = ref 0 in
 		let args = List.map (fun (l, e2) ->
 			if l <> Nolabel then error e.exp_loc "Labeled arguments are not yet supported";
+			incr i;
 			match e2 with
 			| None -> failwith "Arguments without expression are not yet supported";
 			| Some e -> expression e
 		) args in
-		sprintf "%s(%s)" (expression e) (String.concat ", " args)
+		let bind = if !i = (Ctype.arity e.exp_type) then "" else ".bind" in
+		sprintf "%s%s(%s)" (expression e) bind (String.concat ", " args)
 	| Texp_match (expr,cases,exccases,partial) ->
 		if exccases <> [] then failwith "exception match is not supported";
 		switch (expression expr) cases partial
