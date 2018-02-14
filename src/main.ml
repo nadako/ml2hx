@@ -178,16 +178,7 @@ let rec expression e =
 		String.concat ("\n" ^ !istr) parts
 	| Texp_function f -> texp_function (f.arg_label, f.param, f.cases, f.partial) e.exp_env e.exp_loc
 	| Texp_apply (e, args) ->
-		let i = ref 0 in
-		let args = List.map (fun (l, e2) ->
-			if l <> Nolabel then error e.exp_loc "Labeled arguments are not yet supported";
-			incr i;
-			match e2 with
-			| None -> failwith "Arguments without expression are not yet supported";
-			| Some e -> expression e
-		) args in
-		let bind = if !i = (Ctype.arity e.exp_type) then "" else ".bind" in
-		sprintf "%s%s(%s)" (expression e) bind (String.concat ", " args)
+		texp_apply e args
 	| Texp_match (expr,cases,exccases,partial) ->
 		if exccases <> [] then failwith "exception match is not supported";
 		switch (expression expr) cases partial
@@ -286,6 +277,48 @@ and texp_function f env loc =
 	) args in
 	let ret_type = type_expr ret_type in
 	sprintf "function(%s):%s return %s" (String.concat ", " args) ret_type (expression expr)
+
+and texp_apply e args =
+	let i = ref 0 in
+	let args = List.map (fun (l, e2) ->
+		if l <> Nolabel then error e.exp_loc "Labeled arguments are not yet supported";
+		incr i;
+		match e2 with
+		| None -> failwith "Arguments without expression are not yet supported";
+		| Some e -> expression e
+	) args in
+	let se = expression e in
+	if !i = (Ctype.arity e.exp_type) then
+		match se, args with
+		| "Pervasives.not", [e] -> sprintf "!(%s)" e
+		| "Pervasives.&&", [a; b] -> sprintf "%s && %s" a b
+		| "Pervasives.||", [a; b] -> sprintf "%s || %s" a b
+		| "Pervasives.==", [a; b] -> sprintf "%s == %s" a b
+		| "Pervasives.!=", [a; b] -> sprintf "%s != %s" a b
+		| "Pervasives.=", [a; b] -> sprintf "structEq(%s, %s)" a b
+		| "Pervasives.<>", [a; b] -> sprintf "!structEq(%s, %s)" a b
+		| "Pervasives.>", [a; b] -> sprintf "%s > %s" a b
+		| "Pervasives.<", [a; b] -> sprintf "%s < %s" a b
+		| "Pervasives.>=", [a; b] -> sprintf "%s >= %s" a b
+		| "Pervasives.<=", [a; b] -> sprintf "%s <= %s" a b
+		| ("Pervasives.+" | "Pervasives.+."), [a; b] -> sprintf "%s + %s" a b
+		| ("Pervasives.-" | "Pervasives.-."), [a; b] -> sprintf "%s - %s" a b
+		| ("Pervasives.*" | "Pervasives.*."), [a; b] -> sprintf "%s * %s" a b
+		| "Pervasives./", [a; b] -> sprintf "Std.int(%s / %s)" a b
+		| "Pervasives./.", [a; b] -> sprintf "%s / %s" a b
+		| "Pervasives.**", [a; b] -> sprintf "Math.pow(%s, %s)" a b
+		| "Pervasives.mod", [a; b] -> sprintf "%s %% %s" a b
+		| "Pervasives.land", [a; b] -> sprintf "%s & %s" a b
+		| "Pervasives.lor", [a; b] -> sprintf "%s | %s" a b
+		| "Pervasives.lxor", [a; b] -> sprintf "%s ^ %s" a b
+		| "Pervasives.lnot", [e] -> sprintf "~%s" e
+		| "Pervasives.lsl", [a; b] -> sprintf "%s << %s" a b
+		| "Pervasives.asr", [a; b] -> sprintf "%s >> %s" a b
+		| "Pervasives.lsr", [a; b] -> sprintf "%s >>> %s" a b
+		| "Pervasives.^", [a; b] -> sprintf "%s + %s" a b
+		| e, args -> sprintf "%s(%s)" e (String.concat ", " args)
+	else
+		sprintf "%s.bind(%s)" se (String.concat ", " args)
 
 and value_binding v =
 	match v.vb_pat.pat_desc, v.vb_expr.exp_desc with
