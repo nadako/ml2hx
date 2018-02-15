@@ -46,6 +46,7 @@ let mk_param_ident env param t loc =
 	}
 
 let mk_lets bindings expr =
+	if bindings = [] then expr else
 	{
 		exp_desc = Texp_let (Nonrecursive,bindings,expr);
 		exp_loc = expr.exp_loc;
