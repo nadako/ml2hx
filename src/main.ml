@@ -191,12 +191,16 @@ let rec expression e =
 	| Texp_ident (path, ident, desc) -> Path.name path
 	| Texp_constant c -> constant c
 	| Texp_let (_,bindings,expr) ->
-		let s,i = with_indent (fun () ->
-			let parts = value_bindings bindings in
-			let parts = parts @ [expression expr] in
-			String.concat (";\n" ^ !istr) parts
-		) () in
-		sprintf "{\n%s%s;\n%s}" i s !istr
+		(match value_bindings bindings with
+		| [] ->
+			expression expr
+		| parts ->
+			let s,i = with_indent (fun () ->
+				let parts = parts @ [expression expr] in
+				String.concat (";\n" ^ !istr) parts
+			) () in
+			sprintf "{\n%s%s;\n%s}" i s !istr
+		)
 	| Texp_function f -> texp_function (f.arg_label, f.param, f.cases, f.partial) e.exp_env e.exp_loc
 	| Texp_apply (e, args) ->
 		texp_apply e args
@@ -297,7 +301,7 @@ and texp_function f env loc =
 		sprintf "%s:%s" (Ident.name param) (type_expr t)
 	) args in
 	let ret_type = type_expr ret_type in
-	sprintf "function(%s):%s return %s" (String.concat ", " args) ret_type (expression expr)
+	sprintf "function(%s):%s return %s;" (String.concat ", " args) ret_type (expression expr)
 
 and texp_apply e args =
 	let i = ref 0 in
