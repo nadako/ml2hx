@@ -55,10 +55,22 @@ let mk_lets bindings expr =
 		exp_attributes = [];
 	}
 
+(*
+	Functions are represented in OCaml differently than in Haxe:
+	 * they are always curried, meaning function always take single argument, so multi-arg functions are really nested Texp_functions
+	 * functions always use pattern-matching and can several cases
+
+	We traverse the function and rewrite it so:
+	 * argument patterns become let bindings (since haxe doesn't support patterns in arguments)
+	 * multiple cases become a match expression
+
+	In the end this function returns a list of flattened arguments, return type and a modified expression so one
+	can construct Haxe-looking function from this.
+*)
 let rewrite_func f env loc =
 	let rec loop args_acc let_acc (arg_label, param, cases, partial) =
 		match cases with
-		| [c] ->
+		| [c] -> (* single-case function - most common *)
 			let let_acc = {
 				vb_pat = c.c_lhs;
 				vb_expr = mk_param_ident env param c.c_lhs.pat_type loc;
@@ -66,11 +78,11 @@ let rewrite_func f env loc =
 				vb_loc = loc;
 			} :: let_acc in
 			(match c with
-			| { c_rhs = { exp_desc = Texp_function f} } ->
+			| { c_rhs = { exp_desc = Texp_function f} } -> (* curried function - collect args until we get some real expression *)
 				loop ((arg_label, param, c.c_lhs.pat_type) :: args_acc) let_acc (f.arg_label, f.param, f.cases, f.partial)
-			| _ ->
+			| _ -> (* actual function body after flattening curried functions  \o/ *)
 				(arg_label, param, c.c_lhs.pat_type) :: args_acc, c.c_rhs.exp_type, let_acc, c.c_rhs)
-		| _ ->
+		| _ -> (* multi-case function - transform into single-case + match *)
 			let c = List.hd cases in
 			let param_ident = mk_param_ident env param c.c_lhs.pat_type loc in
 			let expr = {
