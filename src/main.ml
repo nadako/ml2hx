@@ -13,7 +13,7 @@ let indent () =
 	istr := old ^ "\t";
 	fun () -> istr := old
 
-let with_ident f v =
+let with_indent f v =
 	let unindent = indent () in
 	let istr = !istr in
 	let r = f v in
@@ -183,9 +183,9 @@ let rec expression e =
 		if exccases <> [] then failwith "exception match is not supported";
 		switch (expression expr) cases partial
 	| Texp_try (e,cases) ->
-		let e,i = with_ident expression e in
+		let e,i = with_indent expression e in
 		let catches = List.map (fun c ->
-			let body,i = with_ident expression c.c_rhs in
+			let body,i = with_indent expression c.c_rhs in
 			sprintf "%scatch (TODO)\n%s%s" !istr i body
 		) cases in
 		sprintf "try\n%s%s\n%s" i e (String.concat "\n" catches)
