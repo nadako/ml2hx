@@ -173,9 +173,12 @@ let rec expression e =
 	| Texp_ident (path, ident, desc) -> Path.name path
 	| Texp_constant c -> constant c
 	| Texp_let (_,bindings,expr) ->
-		let parts = List.map value_binding bindings in
-		let parts = parts @ [expression expr] in
-		String.concat ("\n" ^ !istr) parts
+		let s,i = with_indent (fun () ->
+			let parts = List.map value_binding bindings in
+			let parts = parts @ [expression expr] in
+			String.concat ("\n" ^ !istr) parts
+		) () in
+		sprintf "{\n%s%s;\n%s}" i s !istr
 	| Texp_function f -> texp_function (f.arg_label, f.param, f.cases, f.partial) e.exp_env e.exp_loc
 	| Texp_apply (e, args) ->
 		texp_apply e args
