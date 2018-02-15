@@ -24,6 +24,7 @@ let s_typepath path =
 	match Path.name path with
 	| "int" -> "Int"
 	| "string" -> "String"
+	| "bool" -> "Bool"
 	| "unit" -> "Void"
 	| other -> other
 
@@ -57,15 +58,18 @@ let mk_lets bindings expr =
 let rewrite_func f env loc =
 	let rec loop args_acc let_acc (arg_label, param, cases, partial) =
 		match cases with
-		| [{ c_rhs = { exp_desc = Texp_function f} } as c] ->
-			let args_acc = (arg_label, param, c.c_lhs.pat_type) :: args_acc in
+		| [c] ->
 			let let_acc = {
 				vb_pat = c.c_lhs;
 				vb_expr = mk_param_ident env param c.c_lhs.pat_type loc;
 				vb_attributes = [];
 				vb_loc = loc;
 			} :: let_acc in
-			loop args_acc let_acc (f.arg_label, f.param, f.cases, f.partial)
+			(match c with
+			| { c_rhs = { exp_desc = Texp_function f} } ->
+				loop ((arg_label, param, c.c_lhs.pat_type) :: args_acc) let_acc (f.arg_label, f.param, f.cases, f.partial)
+			| _ ->
+				(arg_label, param, c.c_lhs.pat_type) :: args_acc, c.c_rhs.exp_type, let_acc, c.c_rhs)
 		| _ ->
 			let c = List.hd cases in
 			let param_ident = mk_param_ident env param c.c_lhs.pat_type loc in
@@ -77,9 +81,10 @@ let rewrite_func f env loc =
 				exp_env = env;
 				exp_attributes = [];
 			} in
-			List.rev ((arg_label, param, c.c_lhs.pat_type) :: args_acc), c.c_rhs.exp_type, mk_lets (List.rev let_acc) expr
+			(arg_label, param, c.c_lhs.pat_type) :: args_acc, c.c_rhs.exp_type, let_acc, expr
 	in
-	loop [] [] f
+	let args, t, lets, expr = loop [] [] f in
+	List.rev args, t, mk_lets (List.rev lets) expr
 
 let rec type_expr t =
 	match t.desc with
