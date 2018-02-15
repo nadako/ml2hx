@@ -318,14 +318,17 @@ and texp_apply e args =
 		| "Pervasives.not", [e] -> sprintf "!(%s)" e
 		| "Pervasives.&&", [a; b] -> sprintf "%s && %s" a b
 		| "Pervasives.||", [a; b] -> sprintf "%s || %s" a b
+
 		| "Pervasives.==", [a; b] -> sprintf "%s == %s" a b
 		| "Pervasives.!=", [a; b] -> sprintf "%s != %s" a b
 		| "Pervasives.=", [a; b] -> sprintf "structEq(%s, %s)" a b
 		| "Pervasives.<>", [a; b] -> sprintf "!structEq(%s, %s)" a b
+
 		| "Pervasives.>", [a; b] -> sprintf "%s > %s" a b
 		| "Pervasives.<", [a; b] -> sprintf "%s < %s" a b
 		| "Pervasives.>=", [a; b] -> sprintf "%s >= %s" a b
 		| "Pervasives.<=", [a; b] -> sprintf "%s <= %s" a b
+
 		| ("Pervasives.+" | "Pervasives.+."), [a; b] -> sprintf "%s + %s" a b
 		| ("Pervasives.-" | "Pervasives.-."), [a; b] -> sprintf "%s - %s" a b
 		| ("Pervasives.*" | "Pervasives.*."), [a; b] -> sprintf "%s * %s" a b
@@ -341,6 +344,17 @@ and texp_apply e args =
 		| "Pervasives.asr", [a; b] -> sprintf "%s >> %s" a b
 		| "Pervasives.lsr", [a; b] -> sprintf "%s >>> %s" a b
 		| "Pervasives.^", [a; b] -> sprintf "%s + %s" a b
+
+		| "Pervasives.fst", [e] -> sprintf "%s._0" e
+		| "Pervasives.snd", [e] -> sprintf "%s._1" e
+
+		(* TODO: analyze whether ref is not used outside of the function and use normal mutable var *)
+		| "Pervasives.ref", [e] -> sprintf "ref(%s)" e
+		| "Pervasives.:=", [a; b] -> sprintf "%s.value = %s" a b
+		| "Pervasives.!", [e] -> sprintf "%s.value" e
+		| "Pervasives.incr", [e] -> sprintf "%s.value++" e
+		| "Pervasives.decr", [e] -> sprintf "%s.value--" e
+
 		| e, args -> sprintf "%s(%s)" e (String.concat ", " args)
 	else
 		sprintf "%s.bind(%s)" se (String.concat ", " args)
