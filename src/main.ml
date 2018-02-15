@@ -192,9 +192,9 @@ let rec expression e =
 	| Texp_constant c -> constant c
 	| Texp_let (_,bindings,expr) ->
 		let s,i = with_indent (fun () ->
-			let parts = List.map value_binding bindings in
+			let parts = value_bindings bindings in
 			let parts = parts @ [expression expr] in
-			String.concat ("\n" ^ !istr) parts
+			String.concat (";\n" ^ !istr) parts
 		) () in
 		sprintf "{\n%s%s;\n%s}" i s !istr
 	| Texp_function f -> texp_function (f.arg_label, f.param, f.cases, f.partial) e.exp_env e.exp_loc
@@ -342,9 +342,29 @@ and texp_apply e args =
 		sprintf "%s.bind(%s)" se (String.concat ", " args)
 
 and value_binding v =
-	match v.vb_pat.pat_desc, v.vb_expr.exp_desc with
- 	| Tpat_var (_, name), _ -> sprintf "var %s = %s;" name.txt (expression v.vb_expr)
-	| _ -> failwith "TODO"
+	match v.vb_pat.pat_desc with
+	| Tpat_any -> None
+	| Tpat_var (_, name) ->
+		(match v.vb_expr.exp_desc with
+		| Texp_ident (p,_,_) when Path.name p = name.txt -> None (* don't generate `var a = a` *)
+		| _ -> Some (sprintf "var %s = %s" name.txt (expression v.vb_expr))
+		)
+	| Tpat_alias _ -> Some "// TODO: Tpat_alias"
+	| Tpat_constant _ -> Some "// TODO: Tpat_constant"
+	| Tpat_tuple _ -> Some "// TODO: Tpat_tuple"
+	| Tpat_construct _ -> Some "// TODO: Tpat_construct"
+	| Tpat_variant _ -> Some "// TODO: Tpat_variant"
+	| Tpat_record _ -> Some "// TODO: Tpat_record"
+	| Tpat_array _ -> Some "// TODO: Tpat_array"
+	| Tpat_or _ -> Some "// TODO: Tpat_or"
+	| Tpat_lazy _ -> Some "// TODO: Tpat_lazy"
+
+and value_bindings vl =
+	let vl = List.map value_binding vl in
+	List.fold_left (fun acc v -> match v with
+		| None -> acc
+		| Some v -> v :: acc
+	) [] vl
 
 let class_declaration (c,pub_methods) =
 	"TODO: class_declaration"
@@ -354,7 +374,7 @@ let structure_item item =
 	| Tstr_type (_, dl) ->
 		String.concat "\n\n" (List.map type_declaration dl)
 	| Tstr_value (_, vl) ->
-		String.concat "\n\n" (List.map value_binding vl)
+		String.concat "\n\n" (value_bindings vl)
 	| Tstr_eval _ -> "TODO: Tstr_eval"
 	| Tstr_primitive _ -> "TODO: Tstr_primitive"
 	| Tstr_typext _ -> "TODO: Tstr_typext"
