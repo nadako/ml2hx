@@ -117,8 +117,9 @@ let rec s_type_hint ?(format_anon=false) t  =
 		| [t] -> sprintf "%s->%s" (s_type_hint t) (s_type_hint ret)
 		| _ -> sprintf "(%s)->%s" (String.concat "," (List.map (fun t -> s_type_hint t) args)) (s_type_hint ret)
 		)
-	| _ ->
-		assert false
+	| TTuple tl ->
+		let name = sprintf "Tuple%d" (List.length tl) in
+		s_type_hint (TPath ([],name,tl))
 
 let s_enum name ctors =
 	let ctors = List.map (fun (n,args) ->
@@ -203,10 +204,11 @@ let rec s_expr ind = function
 	| ETuple el ->
 		let i = ref 0 in
 		let fl = List.map (fun e ->
-			let n = (let n = sprintf "_%d" !i in incr i; n) in
-			n,e
+			let s = sprintf "_%d: %s" !i (s_expr ind e) in
+			incr i;
+			s
 		) el in
-		s_expr ind (EObjectDecl fl)
+		sprintf "{%s}" (String.concat ", " fl)
 	| ETupleAccess (e,n) ->
 		s_expr ind (EField (e, sprintf "_%d" n))
 	| EThrow e -> "throw " ^ (s_expr ind e)

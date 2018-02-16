@@ -105,7 +105,7 @@ let rec type_expr t =
 			| _ -> TFunction (List.map type_expr (List.rev acc), type_expr t)
 		in
 		loop [a] b
-	| Ttuple tl -> TPath ([], sprintf "Tuple%d" (List.length tl), List.map type_expr tl)
+	| Ttuple tl -> TTuple (List.map type_expr tl)
 	| Tconstr (path,pl,_) -> TPath ([], s_typepath path, List.map type_expr pl)
 	| Tobject _ -> failwith "Tobject"
 	| Tfield _ -> failwith "Tfield"
