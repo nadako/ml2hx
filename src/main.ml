@@ -173,80 +173,95 @@ let rec mk_ident p = match p with
 	| Papply _ -> assert false
 
 let rec expression e =
-	match e.exp_desc with
-	| Texp_ident (path, ident, desc) -> mk_ident path
-	| Texp_constant c -> constant c
-	| Texp_let (_,bindings,expr) ->
-		(match value_bindings bindings with
-		| [] ->
-			expression expr
-		| parts ->
-			EBlock (parts @ [expression expr]);
-		)
-	| Texp_function f -> texp_function (f.arg_label, f.param, f.cases, f.partial) e.exp_env e.exp_loc
-	| Texp_apply (e, args) ->
-		texp_apply e args
-	| Texp_match (expr,cases,exccases,partial) ->
-		if exccases <> [] then failwith "exception match is not supported";
-		switch (expression expr) cases partial
-	| Texp_try (e,cases) ->
-		let catches = List.map (fun c -> "TODO", TPath ([],"TODO",[]), expression c.c_rhs) cases in
-		ETry (expression e, catches)
-	| Texp_tuple exprs ->
-		ETuple (List.map expression exprs)
-	| Texp_construct (_,ctor,args) ->
-		let ector = EIdent ctor.cstr_name in
-		if args = [] then ector
-		else ECall (ector, List.map expression args)
-	| Texp_variant _ -> failwith "TODO: Texp_variant"
-	| Texp_record { fields = fields; extended_expression = extends } ->
-		let fields = Array.to_list fields in
-		(match extends with
-		| None ->
-			let fields = List.map (fun (d,r) ->
-				let v = match r with
-					| Kept _ -> assert false
-					| Overridden (_,e) -> expression e
+	let inner e =
+		match e.exp_desc with
+		| Texp_ident (path, ident, desc) -> mk_ident path
+		| Texp_constant c -> constant c
+		| Texp_let (_,bindings,expr) ->
+			(match value_bindings bindings with
+			| [] ->
+				expression expr
+			| parts ->
+				let tail = match expression expr with
+					| EBlock el -> el
+					| e -> [ e ]
 				in
-				d.lbl_name, v
-			) fields in
-			EObjectDecl fields
-		| Some expr ->
-			let fields = List.map (fun (d,r) ->
-				let v = match r with
-					| Kept _ -> EField (EIdent "__obj", d.lbl_name)
-					| Overridden (_,e) -> expression e
-				in
-				d.lbl_name, v
-			) fields in
-			EBlock [
-				EVar ("__obj", None, expression expr);
-				EObjectDecl fields;
-			];
-		)
-	| Texp_field (eobj,_,label) ->
-		EField (expression eobj, label.lbl_name)
-	| Texp_setfield (eobj,_,label,evalue) ->
-		EBinop (OpAssign, EField (expression eobj, label.lbl_name), expression evalue)
-	| Texp_array _ -> failwith "TODO: Texp_array"
-	| Texp_ifthenelse (econd,ethen,eelse) ->
-		EIf (expression econd, expression ethen, match eelse with None -> None | Some e -> Some (expression e))
-	| Texp_sequence (a,b) -> failwith "TODO: Texp_sequence"
-	| Texp_while (econd,ebody) -> EWhile (expression econd, expression ebody)
-	| Texp_for _ -> failwith "TODO: Texp_for"
-	| Texp_send _ -> failwith "TODO: Texp_send"
-	| Texp_new _ -> failwith "TODO: Texp_new"
-	| Texp_instvar _ -> failwith "TODO: Texp_instvar"
-	| Texp_setinstvar _ -> failwith "TODO: Texp_setinstvar"
-	| Texp_override _ -> failwith "TODO: Texp_override"
-	| Texp_letmodule _ -> failwith "TODO: Texp_letmodule"
-	| Texp_letexception _ -> failwith "TODO: Texp_letexception"
-	| Texp_assert expr -> ECall (EIdent "assert", [expression expr])
-	| Texp_lazy _ -> failwith "TODO: Texp_lazy"
-	| Texp_object _ -> failwith "TODO: Texp_object"
-	| Texp_pack _ -> failwith "TODO: Texp_pack"
-	| Texp_unreachable -> failwith "TODO: Texp_unreachable"
-	| Texp_extension_constructor _ -> failwith "TODO: Texp_extension_constructor"
+				EBlock (parts @ tail);
+			)
+		| Texp_function f -> texp_function (f.arg_label, f.param, f.cases, f.partial) e.exp_env e.exp_loc
+		| Texp_apply (e, args) ->
+			texp_apply e args
+		| Texp_match (expr,cases,exccases,partial) ->
+			if exccases <> [] then failwith "exception match is not supported";
+			switch (expression expr) cases partial
+		| Texp_try (e,cases) ->
+			let catches = List.map (fun c -> "TODO", TPath ([],"TODO",[]), expression c.c_rhs) cases in
+			ETry (expression e, catches)
+		| Texp_tuple exprs ->
+			ETuple (List.map expression exprs)
+		| Texp_construct (_,ctor,args) ->
+			let ector = EIdent ctor.cstr_name in
+			if args = [] then ector
+			else ECall (ector, List.map expression args)
+		| Texp_variant _ -> failwith "TODO: Texp_variant"
+		| Texp_record { fields = fields; extended_expression = extends } ->
+			let fields = Array.to_list fields in
+			(match extends with
+			| None ->
+				let fields = List.map (fun (d,r) ->
+					let v = match r with
+						| Kept _ -> assert false
+						| Overridden (_,e) -> expression e
+					in
+					d.lbl_name, v
+				) fields in
+				EObjectDecl fields
+			| Some expr ->
+				let fields = List.map (fun (d,r) ->
+					let v = match r with
+						| Kept _ -> EField (EIdent "__obj", d.lbl_name)
+						| Overridden (_,e) -> expression e
+					in
+					d.lbl_name, v
+				) fields in
+				EBlock [
+					EVar ("__obj", None, expression expr);
+					EObjectDecl fields;
+				];
+			)
+		| Texp_field (eobj,_,label) ->
+			EField (expression eobj, label.lbl_name)
+		| Texp_setfield (eobj,_,label,evalue) ->
+			EBinop (OpAssign, EField (expression eobj, label.lbl_name), expression evalue)
+		| Texp_array _ -> failwith "TODO: Texp_array"
+		| Texp_ifthenelse (econd,ethen,eelse) ->
+			EIf (expression econd, expression ethen, match eelse with None -> None | Some e -> Some (expression e))
+		| Texp_sequence _ -> assert false
+		| Texp_while (econd,ebody) -> EWhile (expression econd, expression ebody)
+		| Texp_for _ -> failwith "TODO: Texp_for"
+		| Texp_send _ -> failwith "TODO: Texp_send"
+		| Texp_new _ -> failwith "TODO: Texp_new"
+		| Texp_instvar _ -> failwith "TODO: Texp_instvar"
+		| Texp_setinstvar _ -> failwith "TODO: Texp_setinstvar"
+		| Texp_override _ -> failwith "TODO: Texp_override"
+		| Texp_letmodule _ -> failwith "TODO: Texp_letmodule"
+		| Texp_letexception _ -> failwith "TODO: Texp_letexception"
+		| Texp_assert expr -> ECall (EIdent "assert", [expression expr])
+		| Texp_lazy _ -> failwith "TODO: Texp_lazy"
+		| Texp_object _ -> failwith "TODO: Texp_object"
+		| Texp_pack _ -> failwith "TODO: Texp_pack"
+		| Texp_unreachable -> failwith "TODO: Texp_unreachable"
+		| Texp_extension_constructor _ -> failwith "TODO: Texp_extension_constructor"
+	in
+	let rec loop acc e =
+		match e.exp_desc with
+		| Texp_sequence (a,b) ->
+			loop (loop acc a) b
+		| _ -> inner e :: acc
+	in
+	match loop [] e with
+	| [e] -> e
+	| el -> EBlock (List.rev el)
 
 and switch sexpr cases partial =
 	let cases = List.map (fun c ->
