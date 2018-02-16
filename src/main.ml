@@ -2,23 +2,12 @@ open Printf
 open Asttypes
 open Types
 open Typedtree
+open Path
+open HaxeAst
 
 exception Error of Location.t * string
 
 let error loc msg = raise (Error (loc, msg))
-
-let istr = ref ""
-let indent () =
-	let old = !istr in
-	istr := old ^ "\t";
-	fun () -> istr := old
-
-let with_indent f v =
-	let unindent = indent () in
-	let istr = !istr in
-	let r = f v in
-	unindent ();
-	r, istr
 
 let s_typepath path =
 	match Path.name path with
@@ -101,105 +90,98 @@ let rewrite_func f env loc =
 
 let rec type_expr t =
 	match t.desc with
-	| Tvar _ -> sprintf "TODO<\"Tvar\">"
-	| Tarrow (Nolabel,a,b,_) -> sprintf "%s -> %s" (type_expr a) (type_expr b)
-	| Tarrow _ -> sprintf "TODO<\"Tarrow\">"
-	| Ttuple tl -> sprintf "Tuple%d<%s>" (List.length tl) (String.concat ", " (List.map type_expr tl))
-	| Tconstr (path,pl,_) -> (s_typepath path) ^ (if pl = [] then "" else sprintf "<%s>" (String.concat ", " (List.map type_expr pl)))
-	| Tobject _ -> sprintf "TODO<\"Tobject\">"
-	| Tfield _ -> sprintf "TODO<\"Tfield\">"
-	| Tnil -> sprintf "TODO<\"Tnil\">"
+	| Tvar _ -> failwith "Tvar"
+	| Tarrow (Nolabel,a,b,_) -> TFunction ([type_expr a], type_expr b) (* TODO: flatten args *)
+	| Tarrow _ -> failwith "Tarrow"
+	| Ttuple tl -> TPath ([], sprintf "Tuple%d" (List.length tl), List.map type_expr tl)
+	| Tconstr (path,pl,_) -> TPath ([], s_typepath path, List.map type_expr pl)
+	| Tobject _ -> failwith "Tobject"
+	| Tfield _ -> failwith "Tfield"
+	| Tnil -> failwith "Tnil"
 	| Tlink t -> type_expr t
-	| Tsubst _ -> sprintf "TODO<\"Tsubst\">"
-	| Tvariant _ -> sprintf "TODO<\"Tvariant\">"
-	| Tunivar _ -> sprintf "TODO<\"Tunivar\">"
-	| Tpoly (t,pl) -> (type_expr t) ^ (if pl = [] then "" else sprintf "<%s>" (String.concat ", " (List.map type_expr pl)))
-	| Tpackage _ -> sprintf "TODO<\"Tpackage\">"
+	| Tsubst _ -> failwith "Tsubst"
+	| Tvariant _ -> failwith "Tvariant"
+	| Tunivar _ -> failwith "Tunivar"
+	| Tpoly (t,pl) -> type_expr t (* TODO *)
+	| Tpackage _ -> failwith "Tpackage"
 
 let core_type t = type_expr t.ctyp_type
 
-let label_declaration l =
-	let kw = if l.ld_mutable = Immutable then "final" else "var" in
-	let t = core_type l.ld_type in
-	sprintf "%s %s:%s;" kw l.ld_name.txt t
+let mk_structure label_declarations =
+	let fields = List.map (fun l ->
+		(match l.ld_mutable with Immutable -> FFinal | Mutable -> FVar),
+		l.ld_name.txt,
+		core_type l.ld_type
+	) label_declarations in
+	TAnonymous fields
 
 let type_declaration t =
 	let name = t.typ_name.txt in
-	match t.typ_kind with
-	| Ttype_variant cl ->
-		let ctors = List.map (fun c ->
-			let name = c.cd_name.txt in
-			let args = match c.cd_args with
-			| Cstr_tuple tl ->
-				let c = ref (Char.code 'a') in
-				let args = List.map (fun t -> sprintf "%c:%s" (Char.chr !c) (core_type t)) tl in
-				if args = [] then "" else sprintf "(%s)" (String.concat ", " args)
-			| Cstr_record ll ->
-				sprintf "(v:{ %s })" (String.concat " " (List.map label_declaration ll))
-			in
-			name ^ args
-		) cl in
-		sprintf "enum %s {\n\t%s\n}" name (String.concat "\n\t" ctors)
-	| Ttype_record ll ->
-		let fields = List.map label_declaration ll in
-		sprintf "typedef %s = {\n\t%s\n}" name (String.concat "\n\t" fields)
-	| Ttype_open -> failwith "TODO: Ttype_open"
-	| Ttype_abstract ->
-		match t.typ_manifest with
-		| None -> failwith "TODO: Ttype_abstract"
-		| Some t -> sprintf "typedef %s = %s;" name (core_type t)
+	let kind =
+		match t.typ_kind with
+		| Ttype_variant cl ->
+			let ctors = List.map (fun c ->
+				let name = c.cd_name.txt in
+				let args =
+					match c.cd_args with
+					| Cstr_tuple tl ->
+						let c = ref (Char.code 'a') in
+						List.map (fun t -> String.make 1 (Char.chr !c), core_type t) tl
+					| Cstr_record ll ->
+						[("v", mk_structure ll)]
+				in
+				name, args
+			) cl in
+			TDEnum ctors
+		| Ttype_record ll ->
+			TDTypedef (mk_structure ll)
+		| Ttype_open ->
+			failwith "TODO: Ttype_open"
+		| Ttype_abstract ->
+			match t.typ_manifest with
+			| None -> failwith "TODO: Ttype_abstract"
+			| Some t -> TDTypedef (core_type t)
+	in
+	{ td_name = name; td_kind = kind }
 
 let constant = function
-	| Const_int v -> sprintf "%d" v
-	| Const_char v -> sprintf "\"%c\".code" v
-	| Const_string (v,_) -> sprintf "%S" v
-	| Const_float v -> v
-	| Const_int32 v -> sprintf "%ld" v
-	| Const_int64 v -> sprintf "%Ld /*TODO: int64*/" v
-	| Const_nativeint v -> sprintf "%nd /*TODO: nativeint*/" v
+	| Const_int v -> EConst (CInt (Int32.of_int v))
+	| Const_char v -> EField (EConst (CString (String.make 1 v)), "code")
+	| Const_string (v,_) -> EConst (CString v)
+	| Const_float v -> EConst (CFloat v)
+	| Const_int32 v -> EConst (CInt v)
+	| Const_int64 v -> failwith "TODO: Const_int64"
+	| Const_nativeint v -> failwith "TODO: Const_nativeint"
 
 let rec pattern p =
 	match p.pat_desc with
-	| Tpat_any -> "_"
-	| Tpat_var (_, n) -> n.txt
-	| Tpat_alias (pat,_,n) -> sprintf "%s = (%s)" n.txt (pattern pat)
-	| Tpat_constant c -> constant c
-	| Tpat_tuple pl ->
-		let i = ref 0 in
-		let fields = List.map (fun p ->
-			let s = sprintf "_%d: %s" !i (pattern p) in
-			incr i;
-			s
-		) pl in
-		sprintf "{ %s }" (String.concat ", " fields)
-	| Tpat_construct (_,ctor,pl) ->
-		if pl = [] then
-			if ctor.cstr_name = "()" then "null /* TODO: unit? */"
-			else ctor.cstr_name
-		else
-			sprintf "%s(%s)" ctor.cstr_name (String.concat ", " (List.map pattern pl))
-	| Tpat_variant _ -> failwith "polymorphic variants are unsupported"
-	| Tpat_record (fields,_) ->
-		let fields = List.map (fun (_,l,p) -> sprintf "%s: %s" (l.lbl_name) (pattern p)) fields in
-		sprintf "{ %s }" (String.concat ", " fields)
-	| Tpat_array pl -> sprintf "[ %s ]" (String.concat ", " (List.map pattern pl))
-	| Tpat_or (a,b,_) -> sprintf "%s | %s" (pattern a) (pattern b)
-	| Tpat_lazy _ -> failwith "lazy patterns are unsupported"
+	| Tpat_any -> PAny
+	| Tpat_var (_, n) -> PVar n.txt
+	| Tpat_alias (pat,_,n) -> PAlias (n.txt, pattern pat)
+	| Tpat_constant c -> PConst (constant c)
+	| Tpat_tuple pl -> PTuple (List.map pattern pl)
+	| Tpat_construct (_,ctor,pl) -> PEnumCtor (ctor.cstr_name, List.map pattern pl)
+	| Tpat_variant _ -> failwith "TODO: Tpat_variant"
+	| Tpat_record (fields,_) -> PFields (List.map (fun (_,l,p) -> l.lbl_name, pattern p) fields)
+	| Tpat_array pl -> PArray (List.map pattern pl)
+	| Tpat_or (a,b,_) -> POr (pattern a, pattern b)
+	| Tpat_lazy _ -> failwith "TODO: Tpat_lazy"
+
+let rec mk_ident p = match p with
+	| Pident i -> EIdent i.name
+	| Pdot (p,f,_) -> EField (mk_ident p, f)
+	| Papply _ -> assert false
 
 let rec expression e =
 	match e.exp_desc with
-	| Texp_ident (path, ident, desc) -> Path.name path
+	| Texp_ident (path, ident, desc) -> mk_ident path
 	| Texp_constant c -> constant c
 	| Texp_let (_,bindings,expr) ->
 		(match value_bindings bindings with
 		| [] ->
 			expression expr
 		| parts ->
-			let s,i = with_indent (fun () ->
-				let parts = parts @ [expression expr] in
-				String.concat (";\n" ^ !istr) parts
-			) () in
-			sprintf "{\n%s%s;\n%s}" i s !istr
+			EBlock (parts @ [expression expr]);
 		)
 	| Texp_function f -> texp_function (f.arg_label, f.param, f.cases, f.partial) e.exp_env e.exp_loc
 	| Texp_apply (e, args) ->
@@ -208,27 +190,15 @@ let rec expression e =
 		if exccases <> [] then failwith "exception match is not supported";
 		switch (expression expr) cases partial
 	| Texp_try (e,cases) ->
-		let e,i = with_indent expression e in
-		let catches = List.map (fun c ->
-			let body,i = with_indent expression c.c_rhs in
-			sprintf "%scatch (TODO)\n%s%s" !istr i body
-		) cases in
-		sprintf "try\n%s%s\n%s" i e (String.concat "\n" catches)
+		let catches = List.map (fun c -> "TODO", TPath ([],"TODO",[]), expression c.c_rhs) cases in
+		ETry (expression e, catches)
 	| Texp_tuple exprs ->
-		let i = ref 0 in
-		let fields = List.map (fun e ->
-			let s = sprintf "_%d: %s" !i (expression e) in
-			incr i;
-			s
-		) exprs in
-		sprintf "{ %s }" (String.concat ", " fields)
+		ETuple (List.map expression exprs)
 	| Texp_construct (_,ctor,args) ->
-		if args = [] then (
-			if ctor.cstr_name = "()" then "null /* TODO: unit? */"
-			else ctor.cstr_name
-		) else
-			sprintf "%s(%s)" ctor.cstr_name (String.concat ", " (List.map expression args))
-	| Texp_variant _ -> "TODO: Texp_variant"
+		let ector = EIdent ctor.cstr_name in
+		if args = [] then ector
+		else ECall (ector, List.map expression args)
+	| Texp_variant _ -> failwith "TODO: Texp_variant"
 	| Texp_record { fields = fields; extended_expression = extends } ->
 		let fields = Array.to_list fields in
 		(match extends with
@@ -238,70 +208,72 @@ let rec expression e =
 					| Kept _ -> assert false
 					| Overridden (_,e) -> expression e
 				in
-				sprintf "%s: %s" d.lbl_name v
+				d.lbl_name, v
 			) fields in
-			sprintf "{ %s }" (String.concat ", " fields)
+			EObjectDecl fields
 		| Some expr ->
 			let fields = List.map (fun (d,r) ->
 				let v = match r with
-					| Kept _ -> sprintf "__obj.%s" d.lbl_name
+					| Kept _ -> EField (EIdent "__obj", d.lbl_name)
 					| Overridden (_,e) -> expression e
 				in
-				sprintf "%s: %s" d.lbl_name v
+				d.lbl_name, v
 			) fields in
-			sprintf "{ var __obj = %s; { %s } }" (expression expr) (String.concat ", " fields)
+			EBlock [
+				EVar ("__obj", None, expression expr);
+				EObjectDecl fields;
+			];
 		)
 	| Texp_field (eobj,_,label) ->
-		sprintf "%s.%s" (expression eobj) label.lbl_name
+		EField (expression eobj, label.lbl_name)
 	| Texp_setfield (eobj,_,label,evalue) ->
-		sprintf "%s.%s = %s" (expression eobj) label.lbl_name (expression evalue)
-	| Texp_array _ -> "TODO: Texp_array"
-	| Texp_ifthenelse (econd,ethen,None) ->
-		sprintf "if (%s) %s" (expression econd) (expression ethen)
-	| Texp_ifthenelse (econd,ethen,Some eelse) ->
-		sprintf "if (%s) %s else %s" (expression econd) (expression ethen) (expression eelse)
-	| Texp_sequence (a,b) -> sprintf "%s; %s" (expression a) (expression b)
-	| Texp_while (econd,ebody) -> sprintf "while (%s) %s" (expression econd) (expression ebody)
-	| Texp_for _ -> "TODO: Texp_for"
-	| Texp_send _ -> "TODO: Texp_send"
-	| Texp_new _ -> "TODO: Texp_new"
-	| Texp_instvar _ -> "TODO: Texp_instvar"
-	| Texp_setinstvar _ -> "TODO: Texp_setinstvar"
-	| Texp_override _ -> "TODO: Texp_override"
-	| Texp_letmodule _ -> "TODO: Texp_letmodule"
-	| Texp_letexception _ -> "TODO: Texp_letexception"
-	| Texp_assert expr -> sprintf "assert(%s)" (expression expr)
-	| Texp_lazy _ -> "TODO: Texp_lazy"
-	| Texp_object _ -> "TODO: Texp_object"
-	| Texp_pack _ -> "TODO: Texp_pack"
-	| Texp_unreachable -> "TODO: Texp_unreachable"
-	| Texp_extension_constructor _ -> "TODO: Texp_extension_constructor"
+		EBinop (OpAssign, EField (expression eobj, label.lbl_name), expression evalue)
+	| Texp_array _ -> failwith "TODO: Texp_array"
+	| Texp_ifthenelse (econd,ethen,eelse) ->
+		EIf (expression econd, expression ethen, match eelse with None -> None | Some e -> Some (expression e))
+	| Texp_sequence (a,b) -> failwith "TODO: Texp_sequence"
+	| Texp_while (econd,ebody) -> EWhile (expression econd, expression ebody)
+	| Texp_for _ -> failwith "TODO: Texp_for"
+	| Texp_send _ -> failwith "TODO: Texp_send"
+	| Texp_new _ -> failwith "TODO: Texp_new"
+	| Texp_instvar _ -> failwith "TODO: Texp_instvar"
+	| Texp_setinstvar _ -> failwith "TODO: Texp_setinstvar"
+	| Texp_override _ -> failwith "TODO: Texp_override"
+	| Texp_letmodule _ -> failwith "TODO: Texp_letmodule"
+	| Texp_letexception _ -> failwith "TODO: Texp_letexception"
+	| Texp_assert expr -> ECall (EIdent "assert", [expression expr])
+	| Texp_lazy _ -> failwith "TODO: Texp_lazy"
+	| Texp_object _ -> failwith "TODO: Texp_object"
+	| Texp_pack _ -> failwith "TODO: Texp_pack"
+	| Texp_unreachable -> failwith "TODO: Texp_unreachable"
+	| Texp_extension_constructor _ -> failwith "TODO: Texp_extension_constructor"
 
 and switch sexpr cases partial =
-	let case c =
+	let cases = List.map (fun c ->
 		let pattern = pattern c.c_lhs in
-		let guard = match c.c_guard with None -> "" | Some e -> sprintf " if (%s)" (expression e) in
-		let unindent = indent () in
+		let guard = match c.c_guard with None -> None | Some e -> Some (expression e) in
 		let e = expression c.c_rhs in
-		let r = sprintf "case %s%s:\n%s%s;" pattern guard !istr e in
-		unindent ();
-		r
+		pattern, guard, e
+	) cases in
+	let cases =
+		if partial = Partial then
+			cases @ [(PAny, None, EThrow (EConst (CString "match failure")))]
+		else
+			cases
 	in
-	let unindent = indent () in
-	let ind = !istr in
-	let cases = List.map case cases in
-	unindent ();
-	let cases = if partial = Partial then cases @ ["case _: throw \"match failure\";"] else cases in
-	sprintf "switch %s {\n%s%s\n%s}" sexpr ind (String.concat ("\n" ^ ind) cases) !istr
+	ESwitch (sexpr, cases)
 
 and texp_function f env loc =
 	let args, ret_type, expr = rewrite_func f env loc in
 	let args = List.map (fun (label, param, t) ->
 		assert (label = Nolabel);
-		sprintf "%s:%s" (Ident.name param) (type_expr t)
+		Ident.name param, type_expr t
 	) args in
-	let ret_type = type_expr ret_type in
-	sprintf "function(%s):%s return %s;" (String.concat ", " args) ret_type (expression expr)
+	EFunction {
+		args = args;
+		ret = type_expr ret_type;
+		expr = expression expr;
+	}
 
 and texp_apply e args =
 	let i = ref 0 in
@@ -314,50 +286,52 @@ and texp_apply e args =
 	) args in
 	let se = expression e in
 	if !i = (Ctype.arity e.exp_type) then
-		match se, args with
-		| "Pervasives.not", [e] -> sprintf "!(%s)" e
-		| "Pervasives.&&", [a; b] -> sprintf "%s && %s" a b
-		| "Pervasives.||", [a; b] -> sprintf "%s || %s" a b
+		match se with
+		| EField (EIdent "Pervasives", field) ->
+			(match field, args with
+			| "not", [e] -> EUnop (OpNot, e)
+			| "&&", [a; b] -> EBinop (OpAnd, a, b)
+			| "||", [a; b] -> EBinop (OpOr, a, b)
+			| "==", [a; b] -> EBinop (OpEq, a, b)
+			| "!=", [a; b] -> EBinop (OpNeq, a, b)
+			| "=", [a; b] -> ECall (EIdent "structEq", [a; b])
+			| "<>", [a; b] -> EUnop (OpNot, ECall (EIdent "structEq", [a; b]))
 
-		| "Pervasives.==", [a; b] -> sprintf "%s == %s" a b
-		| "Pervasives.!=", [a; b] -> sprintf "%s != %s" a b
-		| "Pervasives.=", [a; b] -> sprintf "structEq(%s, %s)" a b
-		| "Pervasives.<>", [a; b] -> sprintf "!structEq(%s, %s)" a b
+			| ">", [a; b] -> EBinop (OpGt, a, b)
+			| "<", [a; b] -> EBinop (OpLt, a, b)
+			| ">=", [a; b] -> EBinop (OpGte, a, b)
+			| "<=", [a; b] -> EBinop (OpLte, a, b)
 
-		| "Pervasives.>", [a; b] -> sprintf "%s > %s" a b
-		| "Pervasives.<", [a; b] -> sprintf "%s < %s" a b
-		| "Pervasives.>=", [a; b] -> sprintf "%s >= %s" a b
-		| "Pervasives.<=", [a; b] -> sprintf "%s <= %s" a b
+			| ("+" | "+."), [a; b] -> EBinop (OpAdd, a, b)
+			| ("-" | "-."), [a; b] -> EBinop (OpSub, a, b)
+			| ("*" | "*."), [a; b] -> EBinop (OpMul, a, b)
+			| "/", [a; b] -> ECall (EField (EIdent "Std", "int"), [EBinop (OpDiv, a, b)])
+			| "/.", [a; b] -> EBinop (OpDiv, a, b)
+			| "**", [a; b] -> ECall (EField (EIdent "Math", "pow"), [a; b])
+			| "mod", [a; b] -> EBinop (OpMod, a, b)
+			| "land", [a; b] -> EBinop (OpBitAnd, a, b)
+			| "lor", [a; b] -> EBinop (OpBitOr, a, b)
+			| "lxor", [a; b] -> EBinop (OpBitXor, a, b)
+			| "lnot", [e] -> EUnop (OpBitNeg, e)
+			| "lsl", [a; b] -> EBinop (OpShiftLeft, a, b)
+			| "asr", [a; b] -> EBinop (OpShiftRight, a, b)
+			| "lsr", [a; b] -> EBinop (OpShiftRightUnsigned, a, b)
+			| "^", [a; b] -> EBinop (OpAdd, a, b)
 
-		| ("Pervasives.+" | "Pervasives.+."), [a; b] -> sprintf "%s + %s" a b
-		| ("Pervasives.-" | "Pervasives.-."), [a; b] -> sprintf "%s - %s" a b
-		| ("Pervasives.*" | "Pervasives.*."), [a; b] -> sprintf "%s * %s" a b
-		| "Pervasives./", [a; b] -> sprintf "Std.int(%s / %s)" a b
-		| "Pervasives./.", [a; b] -> sprintf "%s / %s" a b
-		| "Pervasives.**", [a; b] -> sprintf "Math.pow(%s, %s)" a b
-		| "Pervasives.mod", [a; b] -> sprintf "%s %% %s" a b
-		| "Pervasives.land", [a; b] -> sprintf "%s & %s" a b
-		| "Pervasives.lor", [a; b] -> sprintf "%s | %s" a b
-		| "Pervasives.lxor", [a; b] -> sprintf "%s ^ %s" a b
-		| "Pervasives.lnot", [e] -> sprintf "~%s" e
-		| "Pervasives.lsl", [a; b] -> sprintf "%s << %s" a b
-		| "Pervasives.asr", [a; b] -> sprintf "%s >> %s" a b
-		| "Pervasives.lsr", [a; b] -> sprintf "%s >>> %s" a b
-		| "Pervasives.^", [a; b] -> sprintf "%s + %s" a b
+			| "fst", [e] -> ETupleAccess (e, 0)
+			| "snd", [e] -> ETupleAccess (e, 1)
 
-		| "Pervasives.fst", [e] -> sprintf "%s._0" e
-		| "Pervasives.snd", [e] -> sprintf "%s._1" e
-
-		(* TODO: analyze whether ref is not used outside of the function and use normal mutable var *)
-		| "Pervasives.ref", [e] -> sprintf "ref(%s)" e
-		| "Pervasives.:=", [a; b] -> sprintf "%s.value = %s" a b
-		| "Pervasives.!", [e] -> sprintf "%s.value" e
-		| "Pervasives.incr", [e] -> sprintf "%s.value++" e
-		| "Pervasives.decr", [e] -> sprintf "%s.value--" e
-
-		| e, args -> sprintf "%s(%s)" e (String.concat ", " args)
+			(* TODO: analyze whether ref is not used outside of the function and use normal mutable var *)
+			| "ref", [e] -> ECall (EIdent "ref", [e])
+			| ":=", [a; b] -> EBinop (OpAssign, EField (a, "value"), b)
+			| "!", [e] -> EField (e, "value")
+			| "incr", [e] -> EUnop (OpIncr, (EField (e, "value")))
+			| "decr", [e] -> EUnop (OpDecr, (EField (e, "value")))
+			| _ -> ECall (se, args))
+		| _ ->
+			ECall (se, args)
 	else
-		sprintf "%s.bind(%s)" se (String.concat ", " args)
+		ECall (EField (se,"bind"), args)
 
 and value_binding v =
 	match v.vb_pat.pat_desc with
@@ -365,17 +339,17 @@ and value_binding v =
 	| Tpat_var (_, name) ->
 		(match v.vb_expr.exp_desc with
 		| Texp_ident (p,_,_) when Path.name p = name.txt -> None (* don't generate `var a = a` *)
-		| _ -> Some (sprintf "var %s = %s" name.txt (expression v.vb_expr))
+		| _ -> Some (EVar (name.txt, None, (expression v.vb_expr)))
 		)
-	| Tpat_alias _ -> Some "// TODO: Tpat_alias"
-	| Tpat_constant _ -> Some "// TODO: Tpat_constant"
-	| Tpat_tuple _ -> Some "// TODO: Tpat_tuple"
-	| Tpat_construct _ -> Some "// TODO: Tpat_construct"
-	| Tpat_variant _ -> Some "// TODO: Tpat_variant"
-	| Tpat_record _ -> Some "// TODO: Tpat_record"
-	| Tpat_array _ -> Some "// TODO: Tpat_array"
-	| Tpat_or _ -> Some "// TODO: Tpat_or"
-	| Tpat_lazy _ -> Some "// TODO: Tpat_lazy"
+	| Tpat_alias _ -> failwith "TODO: Tpat_alias"
+	| Tpat_constant _ -> failwith "TODO: Tpat_constant"
+	| Tpat_tuple _ -> failwith "TODO: Tpat_tuple"
+	| Tpat_construct _ -> failwith "TODO: Tpat_construct"
+	| Tpat_variant _ -> failwith "TODO: Tpat_variant"
+	| Tpat_record _ -> failwith "TODO: Tpat_record"
+	| Tpat_array _ -> failwith "TODO: Tpat_array"
+	| Tpat_or _ -> failwith "TODO: Tpat_or"
+	| Tpat_lazy _ -> failwith "TODO: Tpat_lazy"
 
 and value_bindings vl =
 	let vl = List.map value_binding vl in
@@ -384,35 +358,53 @@ and value_bindings vl =
 		| Some v -> v :: acc
 	) [] vl
 
-let class_declaration (c,pub_methods) =
-	"TODO: class_declaration"
+type structitem =
+	| SType of type_decl
+	| SExpr of expr
 
 let structure_item item =
 	match item.str_desc with
 	| Tstr_type (_, dl) ->
-		String.concat "\n\n" (List.map type_declaration dl)
+		List.map (fun d -> SType (type_declaration d)) dl
 	| Tstr_value (_, vl) ->
-		String.concat "\n\n" (value_bindings vl)
-	| Tstr_eval _ -> "TODO: Tstr_eval"
-	| Tstr_primitive _ -> "TODO: Tstr_primitive"
-	| Tstr_typext _ -> "TODO: Tstr_typext"
-	| Tstr_exception _ -> "TODO: Tstr_exception"
-	| Tstr_module _ -> "TODO: Tstr_module"
-	| Tstr_recmodule _ -> "TODO: Tstr_recmodule"
-	| Tstr_modtype _ -> "TODO: Tstr_modtype"
-	| Tstr_open _ -> "TODO: Tstr_open"
-	| Tstr_class (cl) ->
-		String.concat "\n\n" (List.map class_declaration cl)
-	| Tstr_class_type _ -> "TODO: Tstr_class_type"
-	| Tstr_include _ -> "TODO: Tstr_include"
-	| Tstr_attribute _ -> "TODO: Tstr_attribute"
+		List.map (fun v -> SExpr v) (value_bindings vl)
+	| Tstr_eval _ -> failwith "TODO: Tstr_eval"
+	| Tstr_primitive _ -> failwith "TODO: Tstr_primitive"
+	| Tstr_typext _ -> failwith "TODO: Tstr_typext"
+	| Tstr_exception _ -> failwith "TODO: Tstr_exception"
+	| Tstr_module _ -> failwith "TODO: Tstr_module"
+	| Tstr_recmodule _ -> failwith "TODO: Tstr_recmodule"
+	| Tstr_modtype _ -> failwith "TODO: Tstr_modtype"
+	| Tstr_open _ -> failwith "TODO: Tstr_open"
+	| Tstr_class _ -> failwith "TODO: Tstr_class"
+	| Tstr_class_type _ -> failwith "TODO: Tstr_class_type"
+	| Tstr_include _ -> failwith "TODO: Tstr_include"
+	| Tstr_attribute _ -> failwith "TODO: Tstr_attribute"
 
 
 let implementation imp =
-	String.concat "\n\n" (List.map structure_item imp.str_items)
+	let rec loop acc = function
+		| [] -> acc
+		| item :: rest ->
+			structure_item item @ loop acc rest
+	in
+	loop [] imp.str_items
 
 let tool_name = "ml2hx"
 let ppf = Format.err_formatter
+
+let mk_module_class items =
+	let fields = List.map (fun e -> { cf_name = "_"; cf_expr = e }) items in
+	{ td_name = "MODULE"; td_kind = TDClass fields }
+
+let print_ast items =
+	let decls, fields = List.fold_left (fun (decls, fields) item ->
+		match item with
+		| SType t -> t :: decls, fields
+		| SExpr e -> decls, e :: fields
+	) ([], []) items in
+	let decls = if items = [] then decls else (mk_module_class fields) :: decls in
+	String.concat "\n\n" (List.map s_type_decl decls)
 
 let main () =
 	Clflags.color := Some Never;
@@ -445,7 +437,7 @@ let main () =
 	Env.set_unit_name modulename;
 	let env = Compmisc.initial_env() in
 	Compilenv.reset modulename;
-	let out =
+	let items =
 		try
 			let ast = Pparse.parse_implementation ppf ~tool_name filename in
 			let typedtree, _ = Typemod.type_implementation filename outputprefix modulename env ast in
@@ -455,6 +447,7 @@ let main () =
 			Location.report_exception ppf x;
 			exit 2
 	in
+	let out = print_ast items in
 	let f = open_out (modulename ^ ".hx") in
 	output_string f out;
 	close_out f

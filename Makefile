@@ -1,5 +1,5 @@
-SOURCES = src/main.ml
-RESULT  = main
+SOURCES = src/haxeAst.ml src/main.ml
+RESULT = main
 PACKS = compiler-libs
 LIBS = ocamlcommon ocamloptcomp
 OCAMLFLAGS = -color never
