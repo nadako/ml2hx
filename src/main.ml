@@ -215,6 +215,11 @@ let rec expression e =
 			(match (follow e.exp_type).desc with
 			| Tconstr (p, _, _) when Path.same p Predef.path_unit ->
 				EIdent "Unit"
+			| Tconstr (p, _, _) when Path.same p Predef.path_list ->
+				(match ctor.cstr_name, args with
+				| "[]", [] -> EIdent "Tl"
+				| "::", [hd; tl] -> ECall (EIdent "Hd", [expression hd; expression tl])
+				| _ -> assert false)
 			| _ ->
 				let ector = EIdent ctor.cstr_name in
 				if args = [] then ector
