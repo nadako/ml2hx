@@ -112,7 +112,13 @@ let rec s_type_hint ?(format_anon=false) t  =
 			sprintf "{\n%s%s\n}" indent_string (String.concat ("\n" ^ indent_string) fields)
 		else
 			sprintf "{%s}" (String.concat " " fields)
-	| _ -> assert false
+	| TFunction (args,ret) ->
+		(match args with
+		| [t] -> sprintf "%s->%s" (s_type_hint t) (s_type_hint ret)
+		| _ -> sprintf "(%s)->%s" (String.concat "," (List.map (fun t -> s_type_hint t) args)) (s_type_hint ret)
+		)
+	| _ ->
+		assert false
 
 let s_enum name ctors =
 	let ctors = List.map (fun (n,args) ->

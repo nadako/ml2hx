@@ -89,16 +89,28 @@ let rewrite_func f env loc =
 	List.rev args, t, mk_lets (List.rev lets) expr
 
 let rec type_expr t =
+	let rec follow t =
+		match t.desc with
+		| Tlink t -> follow t
+		| _ -> t
+	in
+	let t = follow t in
 	match t.desc with
-	| Tvar _ -> failwith "Tvar"
-	| Tarrow (Nolabel,a,b,_) -> TFunction ([type_expr a], type_expr b) (* TODO: flatten args *)
-	| Tarrow _ -> failwith "Tarrow"
+	| Tvar _ -> TPath ([], "T" ^ (string_of_int t.id), [])
+	| Tarrow (_,a,b,_) ->
+		let rec loop acc t =
+			let t = follow t in
+			match t.desc with
+			| Tarrow (_,a,b,_) -> loop (a :: acc) b
+			| _ -> TFunction (List.map type_expr (List.rev acc), type_expr t)
+		in
+		loop [a] b
 	| Ttuple tl -> TPath ([], sprintf "Tuple%d" (List.length tl), List.map type_expr tl)
 	| Tconstr (path,pl,_) -> TPath ([], s_typepath path, List.map type_expr pl)
 	| Tobject _ -> failwith "Tobject"
 	| Tfield _ -> failwith "Tfield"
 	| Tnil -> failwith "Tnil"
-	| Tlink t -> type_expr t
+	| Tlink _ -> assert false
 	| Tsubst _ -> failwith "Tsubst"
 	| Tvariant _ -> failwith "Tvariant"
 	| Tunivar _ -> failwith "Tunivar"
