@@ -218,9 +218,17 @@ let rec s_expr ind = function
 and s_pattern = function
 	| PAny -> "_"
 	| PVar s -> s
-	| PAlias (n, p) -> sprintf "%s = (%s)" n (s_pattern p)
-	| PTuple pl -> failwith "TODO"
-	| PFields fl -> failwith "TODO"
+	| PAlias (n, p) -> sprintf "%s = %s" n (s_pattern p)
+	| PTuple pl ->
+		let i = ref 0 in
+		let fl = List.map (fun p ->
+			let n = (let n = sprintf "_%d" !i in incr i; n) in
+			n,p
+		) pl in
+		s_pattern (PFields fl)
+	| PFields fl ->
+		let fl = List.map (fun (n,p) -> sprintf "%s: %s" n (s_pattern p)) fl in
+		sprintf "{%s}" (String.concat ", " fl)
 	| PEnumCtor (n,pl) -> failwith "TODO"
 	| PArray pl -> failwith "TODO"
 	| POr (a,b) -> sprintf "%s | %s" (s_pattern a) (s_pattern b)
