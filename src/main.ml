@@ -14,7 +14,7 @@ let s_typepath path =
 	| "int" -> "Int"
 	| "string" -> "String"
 	| "bool" -> "Bool"
-	| "unit" -> "Void"
+	| "unit" -> "Unit"
 	| other -> other
 
 let mk_param_ident env param t loc =
@@ -88,12 +88,12 @@ let rewrite_func f env loc =
 	let args, t, lets, expr = loop [] [] f in
 	List.rev args, t, mk_lets (List.rev lets) expr
 
+let rec follow t =
+	match t.desc with
+	| Tlink t -> follow t
+	| _ -> t
+
 let rec type_expr t =
-	let rec follow t =
-		match t.desc with
-		| Tlink t -> follow t
-		| _ -> t
-	in
 	let t = follow t in
 	match t.desc with
 	| Tvar _ -> TPath ([], "T" ^ (string_of_int t.id), [])
@@ -212,9 +212,14 @@ let rec expression e =
 		| Texp_tuple exprs ->
 			ETuple (List.map expression exprs)
 		| Texp_construct (_,ctor,args) ->
-			let ector = EIdent ctor.cstr_name in
-			if args = [] then ector
-			else ECall (ector, List.map expression args)
+			(match (follow e.exp_type).desc with
+			| Tconstr (p, _, _) when Path.same p Predef.path_unit ->
+				EIdent "Unit"
+			| _ ->
+				let ector = EIdent ctor.cstr_name in
+				if args = [] then ector
+				else ECall (ector, List.map expression args)
+			)
 		| Texp_variant _ -> failwith "TODO: Texp_variant"
 		| Texp_record { fields = fields; extended_expression = extends } ->
 			let fields = Array.to_list fields in
@@ -371,7 +376,12 @@ and value_binding v =
 	| Tpat_alias _ -> failwith "TODO: Tpat_alias"
 	| Tpat_constant _ -> failwith "TODO: Tpat_constant"
 	| Tpat_tuple _ -> failwith "TODO: Tpat_tuple"
-	| Tpat_construct _ -> failwith "TODO: Tpat_construct"
+	| Tpat_construct (_,ctor,pl) ->
+		(match (follow v.vb_pat.pat_type).desc with
+		| Tconstr (p, _, _) when Path.same p Predef.path_unit ->
+			None
+		| _ ->
+			failwith "TODO: Tpat_construct")
 	| Tpat_variant _ -> failwith "TODO: Tpat_variant"
 	| Tpat_record _ -> failwith "TODO: Tpat_record"
 	| Tpat_array _ -> failwith "TODO: Tpat_array"
@@ -430,8 +440,8 @@ let print_ast items =
 		| SType t -> t :: decls, fields
 		| SExpr e -> decls, e :: fields
 	) ([], []) items in
-	let decls = if items = [] then decls else (mk_module_class fields) :: decls in
-	String.concat "\n\n" (List.map s_type_decl decls)
+	let decls = if items = [] then decls else (mk_module_class (List.rev fields)) :: decls in
+	String.concat "\n\n" (List.map s_type_decl (List.rev decls))
 
 let main () =
 	Clflags.color := Some Never;
