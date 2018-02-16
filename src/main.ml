@@ -172,7 +172,15 @@ let rec pattern p =
 	| Tpat_alias (pat,_,n) -> PAlias (n.txt, pattern pat)
 	| Tpat_constant c -> PConst (constant c)
 	| Tpat_tuple pl -> PTuple (List.map pattern pl)
-	| Tpat_construct (_,ctor,pl) -> PEnumCtor (ctor.cstr_name, List.map pattern pl)
+	| Tpat_construct (_,ctor,pl) ->
+		(match ctor.cstr_res.desc with
+		| Tconstr (p, _, _) when Path.same p Predef.path_list ->
+			(match ctor.cstr_name, pl with
+			| "[]", [] -> PEnumCtor ("Tl", [])
+			| "::", [hd; tl] -> PEnumCtor ("Hd", [pattern hd; pattern tl])
+			| _ -> assert false)
+		| _ ->
+			PEnumCtor (ctor.cstr_name, List.map pattern pl))
 	| Tpat_variant _ -> failwith "TODO: Tpat_variant"
 	| Tpat_record (fields,_) -> PFields (List.map (fun (_,l,p) -> l.lbl_name, pattern p) fields)
 	| Tpat_array pl -> PArray (List.map pattern pl)
