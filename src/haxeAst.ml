@@ -229,8 +229,10 @@ and s_pattern = function
 	| PFields fl ->
 		let fl = List.map (fun (n,p) -> sprintf "%s: %s" n (s_pattern p)) fl in
 		sprintf "{%s}" (String.concat ", " fl)
-	| PEnumCtor (n,pl) -> failwith "TODO"
-	| PArray pl -> failwith "TODO"
+	| PEnumCtor (n,pl) ->
+		if pl = [] then n
+		else sprintf "%s(%s)" n (String.concat ", " (List.map s_pattern pl))
+	| PArray pl -> sprintf "[%s]" (String.concat ", " (List.map s_pattern pl))
 	| POr (a,b) -> sprintf "%s | %s" (s_pattern a) (s_pattern b)
 	| PConst e -> s_expr "" e
 
