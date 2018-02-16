@@ -203,12 +203,7 @@ let rec s_expr ind = function
 		) cases in
 		sprintf "switch %s {\n%s\n%s}" (s_expr ind e) (String.concat "\n" cases) ind
 	| ETuple el ->
-		let i = ref 0 in
-		let fl = List.map (fun e ->
-			let s = sprintf "_%d: %s" !i (s_expr ind e) in
-			incr i;
-			s
-		) el in
+		let fl = List.mapi (fun i e -> sprintf "_%d: %s" i (s_expr ind e)) el in
 		sprintf "{%s}" (String.concat ", " fl)
 	| ETupleAccess (e,n) ->
 		s_expr ind (EField (e, sprintf "_%d" n))
@@ -223,11 +218,7 @@ and s_pattern = function
 	| PVar s -> s
 	| PAlias (n, p) -> sprintf "%s = %s" n (s_pattern p)
 	| PTuple pl ->
-		let i = ref 0 in
-		let fl = List.map (fun p ->
-			let n = (let n = sprintf "_%d" !i in incr i; n) in
-			n,p
-		) pl in
+		let fl = List.mapi (fun i p -> sprintf "_%d" i, p) pl in
 		s_pattern (PFields fl)
 	| PFields fl ->
 		let fl = List.map (fun (n,p) -> sprintf "%s: %s" n (s_pattern p)) fl in
