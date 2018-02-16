@@ -418,7 +418,8 @@ let structure_item item =
 		List.map (fun d -> SType (type_declaration d)) dl
 	| Tstr_value (_, vl) ->
 		List.map (fun v -> SExpr v) (value_bindings vl)
-	| Tstr_eval _ -> failwith "TODO: Tstr_eval"
+	| Tstr_eval (e,_) ->
+		[SExpr (expression e)]
 	| Tstr_primitive _ -> failwith "TODO: Tstr_primitive"
 	| Tstr_typext _ -> failwith "TODO: Tstr_typext"
 	| Tstr_exception _ -> failwith "TODO: Tstr_exception"
