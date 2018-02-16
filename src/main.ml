@@ -255,7 +255,7 @@ let rec expression e =
 					d.lbl_name, v
 				) fields in
 				EBlock [
-					EVar ("__obj", None, expression expr);
+					EVar ("__obj", None, Some (expression expr));
 					EObjectDecl fields;
 				];
 			)
@@ -384,7 +384,7 @@ and value_binding v =
 	| Tpat_var (_, name) ->
 		(match v.vb_expr.exp_desc with
 		| Texp_ident (p,_,_) when Path.name p = name.txt -> None (* don't generate `var a = a` *)
-		| _ -> Some (EVar (name.txt, None, (expression v.vb_expr)))
+		| _ -> Some (EVar (name.txt, None, (Some (expression v.vb_expr))))
 		)
 	| Tpat_alias _ -> failwith "TODO: Tpat_alias"
 	| Tpat_constant _ -> failwith "TODO: Tpat_constant"

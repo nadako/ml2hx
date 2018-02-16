@@ -20,7 +20,7 @@ type expr =
 	| EIdent of string
 	| EConst of constant
 	| EBlock of expr list
-	| EVar of string * type_hint option * expr
+	| EVar of string * type_hint option * expr option
 	| EIf of expr * expr * expr option
 	| ECall of expr * expr list
 	| EObjectDecl of (string * expr) list
@@ -173,7 +173,8 @@ let rec s_expr ind = function
 		sprintf "{\n%s\n%s}"(String.concat "\n" el) ind
 	| EVar (n,t,e) ->
 		let t = match t with None -> "" | Some t -> s_type_hint t in
-		sprintf "var %s%s = %s" n t (s_expr ind e)
+		let e = match e with None -> "" | Some e -> sprintf " = %s" (s_expr ind e) in
+		sprintf "var %s%s%s" n t e
 	| EField (e,f) -> (s_expr ind e) ^ "." ^ f
 	| EIf (econd,ethen,None) ->
 		sprintf "if (%s) %s" (s_expr ind econd) (s_expr ind ethen)
