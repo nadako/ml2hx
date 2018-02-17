@@ -215,7 +215,15 @@ let rec expression e =
 			if exccases <> [] then failwith "exception match is not supported";
 			switch (expression expr) cases partial
 		| Texp_try (e,cases) ->
-			let catches = List.map (fun c -> "TODO", TPath ([],"TODO",[]), expression c.c_rhs) cases in
+			let catches = List.map (fun c ->
+				assert (c.c_guard = None);
+				match c.c_lhs.pat_desc with
+				| Tpat_construct (_,ctor,pl) ->
+					assert (not (List.exists (fun p -> p.pat_desc <> Tpat_any) pl));
+					(* TODO: full path how? *)
+					"_", TPath ([],ctor.cstr_name,[]), expression c.c_rhs
+				| _ -> assert false
+			) cases in
 			ETry (expression e, catches)
 		| Texp_tuple exprs ->
 			ETuple (List.map expression exprs)
