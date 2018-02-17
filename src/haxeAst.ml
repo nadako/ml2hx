@@ -211,7 +211,8 @@ let rec s_expr ind = function
 	| EWhile (cond,body) ->
 		sprintf "while (%s) %s" (s_expr ind cond) (s_expr ind body)
 	| ETry (body,catches) ->
-		sprintf "try %s catch (TODO) {}" (s_expr ind body)
+		let catches = List.map (fun (n,t,e) -> sprintf "catch (%s:%s) %s" n (s_type_hint t) (s_expr ind e)) catches in
+		sprintf "try %s %s" (s_expr ind body) (String.concat " " catches)
 
 and s_pattern = function
 	| PAny -> "_"
