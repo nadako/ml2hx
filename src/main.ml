@@ -276,7 +276,14 @@ let rec expression e =
 			EIf (expression econd, expression ethen, match eelse with None -> None | Some e -> Some (expression e))
 		| Texp_sequence _ -> assert false
 		| Texp_while (econd,ebody) -> EWhile (expression econd, expression ebody)
-		| Texp_for _ -> EConst (CString "TODO: Texp_for")
+		| Texp_for (i,_,estart,eend,dir,ebody) ->
+			let estart = expression estart in
+			let eend = expression eend in
+			let eiter = match dir with
+				| Upto -> EInterval (estart, EBinop (OpAdd, eend, EConst (CInt (Int32.of_int 1))))
+				| Downto -> ECall (EIdent "downto", [estart; eend])
+			in
+			EFor (Ident.name i,eiter,expression ebody)
 		| Texp_send _ -> EConst (CString "TODO: Texp_send")
 		| Texp_new _ -> EConst (CString "TODO: Texp_new")
 		| Texp_instvar _ -> EConst (CString "TODO: Texp_instvar")

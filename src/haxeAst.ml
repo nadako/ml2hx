@@ -33,6 +33,8 @@ type expr =
 	| ETuple of expr list
 	| ETupleAccess of expr * int
 	| EWhile of expr * expr
+	| EFor of string * expr * expr
+	| EInterval of expr * expr
 	| EThrow of expr
 
 and case = pattern * expr option * expr
@@ -213,6 +215,11 @@ let rec s_expr ind = function
 	| ETry (body,catches) ->
 		let catches = List.map (fun (n,t,e) -> sprintf "catch (%s:%s) %s" n (s_type_hint t) (s_expr ind e)) catches in
 		sprintf "try %s %s" (s_expr ind body) (String.concat " " catches)
+	| EFor (n,iter,body) ->
+		let ind2 = ind ^ indent_string in
+		sprintf "for (%s in %s)\n%s%s" n (s_expr ind iter) ind2 (s_expr ind2 body)
+	| EInterval (estart,eend) ->
+		sprintf "%s...%s" (s_expr ind estart) (s_expr ind eend)
 
 and s_pattern = function
 	| PAny -> "_"
