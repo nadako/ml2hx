@@ -268,20 +268,20 @@ let rec expression e =
 			EIf (expression econd, expression ethen, match eelse with None -> None | Some e -> Some (expression e))
 		| Texp_sequence _ -> assert false
 		| Texp_while (econd,ebody) -> EWhile (expression econd, expression ebody)
-		| Texp_for _ -> failwith "TODO: Texp_for"
-		| Texp_send _ -> failwith "TODO: Texp_send"
-		| Texp_new _ -> failwith "TODO: Texp_new"
-		| Texp_instvar _ -> failwith "TODO: Texp_instvar"
-		| Texp_setinstvar _ -> failwith "TODO: Texp_setinstvar"
-		| Texp_override _ -> failwith "TODO: Texp_override"
-		| Texp_letmodule _ -> failwith "TODO: Texp_letmodule"
-		| Texp_letexception _ -> failwith "TODO: Texp_letexception"
+		| Texp_for _ -> EConst (CString "TODO: Texp_for")
+		| Texp_send _ -> EConst (CString "TODO: Texp_send")
+		| Texp_new _ -> EConst (CString "TODO: Texp_new")
+		| Texp_instvar _ -> EConst (CString "TODO: Texp_instvar")
+		| Texp_setinstvar _ -> EConst (CString "TODO: Texp_setinstvar")
+		| Texp_override _ -> EConst (CString "TODO: Texp_override")
+		| Texp_letmodule _ -> EConst (CString "TODO: Texp_letmodule")
+		| Texp_letexception _ -> EConst (CString "TODO: Texp_letexception")
 		| Texp_assert expr -> ECall (EIdent "assert", [expression expr])
-		| Texp_lazy _ -> failwith "TODO: Texp_lazy"
-		| Texp_object _ -> failwith "TODO: Texp_object"
-		| Texp_pack _ -> failwith "TODO: Texp_pack"
-		| Texp_unreachable -> failwith "TODO: Texp_unreachable"
-		| Texp_extension_constructor _ -> failwith "TODO: Texp_extension_constructor"
+		| Texp_lazy _ -> EConst (CString "TODO: Texp_lazy")
+		| Texp_object _ -> EConst (CString "TODO: Texp_object")
+		| Texp_pack _ -> EConst (CString "TODO: Texp_pack")
+		| Texp_unreachable -> EConst (CString "TODO: Texp_unreachable")
+		| Texp_extension_constructor _ -> EConst (CString "TODO: Texp_extension_constructor")
 	in
 	let rec loop acc e =
 		match e.exp_desc with
@@ -311,7 +311,7 @@ and switch sexpr cases partial =
 and texp_function f env loc =
 	let args, ret_type, expr = rewrite_func f env loc in
 	let args = List.map (fun (label, param, t) ->
-		assert (label = Nolabel);
+		(* assert (label = Nolabel); *)
 		Ident.name param, type_expr t
 	) args in
 	EFunction {
@@ -323,7 +323,7 @@ and texp_function f env loc =
 and texp_apply e args =
 	let i = ref 0 in
 	let args = List.map (fun (l, e2) ->
-		if l <> Nolabel then error e.exp_loc "Labeled arguments are not yet supported";
+		if l <> Nolabel then (* error e.exp_loc *) prerr_endline "Labeled arguments are not yet supported";
 		incr i;
 		match e2 with
 		| None -> failwith "Arguments without expression are not yet supported";
@@ -386,20 +386,20 @@ and value_binding v =
 		| Texp_ident (p,_,_) when Path.name p = name.txt -> None (* don't generate `var a = a` *)
 		| _ -> Some (EVar (name.txt, None, (Some (expression v.vb_expr))))
 		)
-	| Tpat_alias _ -> failwith "TODO: Tpat_alias"
-	| Tpat_constant _ -> failwith "TODO: Tpat_constant"
-	| Tpat_tuple _ -> failwith "TODO: Tpat_tuple"
+	| Tpat_alias _ -> prerr_endline "TODO: Tpat_alias"; None
+	| Tpat_constant _ -> prerr_endline "TODO: Tpat_constant"; None
+	| Tpat_tuple _ -> prerr_endline "TODO: Tpat_tuple"; None
 	| Tpat_construct (_,ctor,pl) ->
 		(match (follow v.vb_pat.pat_type).desc with
 		| Tconstr (p, _, _) when Path.same p Predef.path_unit ->
 			None
 		| _ ->
-			failwith "TODO: Tpat_construct")
-	| Tpat_variant _ -> failwith "TODO: Tpat_variant"
-	| Tpat_record _ -> failwith "TODO: Tpat_record"
-	| Tpat_array _ -> failwith "TODO: Tpat_array"
-	| Tpat_or _ -> failwith "TODO: Tpat_or"
-	| Tpat_lazy _ -> failwith "TODO: Tpat_lazy"
+			prerr_endline "TODO: Tpat_construct"; None)
+	| Tpat_variant _ -> prerr_endline "TODO: Tpat_variant"; None
+	| Tpat_record _ -> prerr_endline "TODO: Tpat_record"; None
+	| Tpat_array _ -> prerr_endline "TODO: Tpat_array"; None
+	| Tpat_or _ -> prerr_endline "TODO: Tpat_or"; None
+	| Tpat_lazy _ -> prerr_endline "TODO: Tpat_lazy"; None
 
 and value_bindings vl =
 	let vl = List.map value_binding vl in
@@ -420,17 +420,17 @@ let structure_item item =
 		List.map (fun v -> SExpr v) (value_bindings vl)
 	| Tstr_eval (e,_) ->
 		[SExpr (expression e)]
-	| Tstr_primitive _ -> failwith "TODO: Tstr_primitive"
-	| Tstr_typext _ -> failwith "TODO: Tstr_typext"
-	| Tstr_exception _ -> failwith "TODO: Tstr_exception"
-	| Tstr_module _ -> failwith "TODO: Tstr_module"
-	| Tstr_recmodule _ -> failwith "TODO: Tstr_recmodule"
-	| Tstr_modtype _ -> failwith "TODO: Tstr_modtype"
-	| Tstr_open _ -> failwith "TODO: Tstr_open"
-	| Tstr_class _ -> failwith "TODO: Tstr_class"
-	| Tstr_class_type _ -> failwith "TODO: Tstr_class_type"
-	| Tstr_include _ -> failwith "TODO: Tstr_include"
-	| Tstr_attribute _ -> failwith "TODO: Tstr_attribute"
+	| Tstr_primitive _ -> [SExpr (EConst (CString "TODO: Tstr_primitive"))]
+	| Tstr_typext _ -> [SExpr (EConst (CString "TODO: Tstr_typext"))]
+	| Tstr_exception _ -> [SExpr (EConst (CString "TODO: Tstr_exception"))]
+	| Tstr_module _ -> [SExpr (EConst (CString "TODO: Tstr_module"))]
+	| Tstr_recmodule _ -> [SExpr (EConst (CString "TODO: Tstr_recmodule"))]
+	| Tstr_modtype _ -> [SExpr (EConst (CString "TODO: Tstr_modtype"))]
+	| Tstr_open _ -> [SExpr (EConst (CString "TODO: Tstr_open"))]
+	| Tstr_class _ -> [SExpr (EConst (CString "TODO: Tstr_class"))]
+	| Tstr_class_type _ -> [SExpr (EConst (CString "TODO: Tstr_class_type"))]
+	| Tstr_include _ -> [SExpr (EConst (CString "TODO: Tstr_include"))]
+	| Tstr_attribute _ -> [SExpr (EConst (CString "TODO: Tstr_attribute"))]
 
 
 let implementation imp =
